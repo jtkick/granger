@@ -2,7 +2,9 @@
 
 # A simple script that takes audiobook files, renames them, and tags them properly
 
-#import
+# For downloading audiobook cover art
+from google_images_download import google_images_download
+
 
 __author__ = "Jared Kick"
 __copyright__ = ""
@@ -32,5 +34,14 @@ __status__ = "Prototype"
 # Rename filename
 
 # Add tags
+
+# Get audiobook cover art
+# https://github.com/hardikvasa/google-images-download
+response = google_images_download.googleimagesdownload()
+
+arguments = {"keywords": "\"" + title + "\"" + author + " - audiobook", "limit":1, "aspect_ratio":"square"}
+
+paths = response.download(arguments)
+print(paths)
 
 # Move to audiobooks folder
