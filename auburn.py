@@ -55,7 +55,7 @@ print json.dumps(response, sort_keys=True, indent=4)
 # https://github.com/hardikvasa/google-images-download
 response = google_images_download.googleimagesdownload()
 # Set search keywords to "author book title - audiobook" and limit to one result
-arguments = {"keywords": author + " \"" + title + "\"" + " - audiobook", "limit":1, "aspect_ratio":"square"}
+arguments = {"keywords": author + " \"" + title + "\"" + " audiobook", "limit":1, "aspect_ratio":"square"}
 
 paths = response.download(arguments)
 print(paths)
