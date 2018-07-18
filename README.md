@@ -11,3 +11,9 @@ book title book author audiobook cover -abridged -summary -sample
 Install Google Images Downloader
 
 $ pip install google_images_download
+
+Install Google API Python Client
+
+https://developers.google.com/api-client-library/python/apis/books/v1
+
+$ pip install --upgrade google-api-python-client
