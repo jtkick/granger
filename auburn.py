@@ -44,6 +44,46 @@ CHAP = ["chap.", "chtp", "ch", "chapter", "chap"]
 # Path to directory with raw input files
 raw_file_dir = sys.argv[1]
 
+class Library:
+    base_dir = ""
+
+    def __init__(self):
+        pass
+
+    def __init__(self, library_dir):
+        if (os.is_dir(library_dir)):
+            base_dir = library_dir
+        else:
+            raise NotADirectoryError(library_dir + ": not a valid directory")
+
+    def add_book(self, Audiobook):
+        pass
+    
+    def add_author(self, author):
+        new_author_dir = os.path.join(self.base_dir, author)
+        if (os.is_dir(new_author_dir)):
+            return
+        else:
+            os.mkdir(new_author_dir)
+
+            # Get author image
+            response = google_images_download.googleimagesdownload()
+            search_term = "\"" + author + "\" author"
+            arguments = {"keywords":search_term,
+                         "limit":1,
+                         "aspect_ratio":"square",
+                         "no_directory":True}
+            paths = response.download(arguments)
+            image_location = paths[search_term][0]
+
+            # Get file extension
+            filename, file_extension = os.path.splitext(image_location)
+
+            # Move image to library author directory
+            os.rename(image_location, os.path.join(new_author_dir,
+                                                   "folder" + file_extension)
+
+
 class Audiobook:
     """This is what we are going to use to build our new audiobook file"""
     
@@ -54,7 +94,11 @@ class Audiobook:
     genre = ""
     year = 0
     description = ""
-    ratio = 0.0
+
+    # Keep track of the current absolute path of the audiobook file and
+    # it's corresponding cover file
+    audio_location = ""
+    image_location = ""
     
     def __init__(self):
         self.title = ""
@@ -64,21 +108,87 @@ class Audiobook:
         self.genre = ""
         self.year = 0
         self.description = ""
-        self.ratio = 0.0
+
+    def __init__(self, location):
+        self.title = ""
+        self.subtitle = ""
+        self.author = []
+        self.publisher = ""
+        self.genre = ""
+        self.year = 0
+        self.description = ""
+        self.audio_location = location
+
+    # Print audiobook, mostly for debugging and testing purposes
+    def __str__(self):
+        return("Title:       " + self.title + "\n" + 
+               "Subtitle:    " + self.subtitle + "\n" +
+               "Author:      " + self.author + "\n" +
+               "Publisher:   " + self.publisher + "\n" +
+               "Year:        " + self.year + "\n" +
+               "Description: " + self.description + "\n")
 
     # Used to write tags to audio file
-    def write_file(self, file):
+    def write_tags(self):
         pass
+
+    # Get a cover image for the audiobook
+    def get_cover(self):
+        # Since I have yet to find an audiobook cover database,
+        # we're using Google image search
+        # https://github.com/hardikvasa/google-images-download
+        response = google_images_download.googleimagesdownload()
+        search_term = "\"" + self.author + " " + self.title + " audiobook\""
+        arguments = {"keywords":search_term,
+                     "limit":1,
+                     "aspect_ratio":"square",
+                     "no_directory":True}
+        paths = response.download(arguments)
+
+        # Keep hold of location and name for later
+        self.image_location = paths[search_term][0]
+
+    # This function moves the audiobook and cover to pre-specified library location
+    # This should not be called until tags have been written, and a cover has
+    # been found and downloaded
+    def add_to_library(self):
+        # Make sure author directory exists, if not make one
+        new_location = os.path.join(AUDIOBOOK_DIR, self.author, self.title)
+        new_location = AUDIOBOOK_DIR + self.author + '/' + self.title + '/'
+
+        # Make sure author and title directories exist
+        if (not os.is_dir(new_location)):
+            os.mkdirs(new_location)
+
+        new_location += os.path.basename(self.audio_location)
+
+        # Move audio file
+        os.rename(self.audio_location, new_location)
+
+        # Update location in class
+        self.audio_location = new_location
+
+        # Get filename extension
+        filename, file_extension = os.path.splitext(self.image_location)
+
+        # Move and rename file to "folder" with the original extension
+        os.rename( self.image_location, AUDIOBOOK_DIR + 
+                                        self.author + '/' +
+                                        self.title + '/' +
+                                        "folder" + file_extension)
 
 # Iterate through folder
 for audio_file in os.listdir(raw_file_dir):
     
+    # Create object that we will be working with
+    book = Audiobook(os.path(audio_file))
+
     # Cleanse filename
     # For now, we are assuming all files are .ogg format and have no tags, so just use filenames
 
     search_term = audio_file
 
-    # We will work exclusively with lowercase strings
+    # We will work with lowercase strings
     search_term.lower()
 
     # If file contains "excerpt", delete it
@@ -110,12 +220,11 @@ for audio_file in os.listdir(raw_file_dir):
     #response = request.execute()
     # Print response (temporary)
     #print json.dumps(response, sort_keys=True, indent=4)
-    response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" + search_term.replace(' ', '+'))
+    response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
+                            search_term.replace(' ', '+'))
 
     # Make JSON response readable
     response = json.loads(response)
-
-    book = Audiobook()
 
     # Compare titles by iterating through titles and seeing which ones match original
     # While Google Books search is good, occasionally it returns books that are 
@@ -128,18 +237,18 @@ for audio_file in os.listdir(raw_file_dir):
         response_title = item["volumeInfo"]["title"]
         response_subtitle = item["volumeInfo"]["subtitle"]
         response_author = item["volumeInfo"]["authors"]["0"]
-        if (Levenshtein.ratio(response_title + " "
-                            + response_author, search_term) > ratio):
+        if (Levenshtein.ratio(response_title + " " +
+                              response_author, search_term) > ratio):
             match = item["volumeInfo"]
-            ratio = Levenshtein.ratio(response_title + " "
-                                    + response_author, search_term)
-        if (Levenshtein.ratio(response_title + " "
-                            + response_subtitle + " "
-                            + response_author, search_term) > ratio):
+            ratio = Levenshtein.ratio(response_title + " " +
+                                      response_author, search_term)
+        if (Levenshtein.ratio(response_title + " " +
+                              response_subtitle + " " +
+                              response_author, search_term) > ratio):
             match = item["volumeInfo"]
-            ratio = Levenshtein.ratio(response_title + " "
-                                    + response_subtitle + " "
-                                    + response_author, search_term)
+            ratio = Levenshtein.ratio(response_title + " " +
+                                      response_subtitle + " " +
+                                      response_author, search_term)
 
     book.title = match["title"]
     book.subtitle = match["subtitle"]
