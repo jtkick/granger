@@ -25,12 +25,22 @@ $ pipenv install requests
 # Google Books API Test Strings
 
 These are likely to yield wrong results, so they are meant to test the string "cleansing" and Google API search.
+
 Y = String search currently yields correct result
+
 N = String search currently yields incorrect result
 
+
 Y: Complete and Full with Numbers by John MacQueen
+
 Y: GRIMM'S FAIRY TALES by the Brothers Grimm - FULL Audio Book | GreatestAudioBooks.com
+
 Y: 20.000 Leagues Under the Sea - Jules Verne [Audiobook]
+
 Y: The Butcher: Anatomy of a Mafia Psychopath 1 Audiobooks #1 * Philip Carlo 
+
 Y: Forrest Gump - Winston Groom. Audiobook Pl. Książka czytana.
+
 Y: AudioBook A Paixão de Nosso Senhor Jesus Cristo - Sto Afonso Maria de Ligório (VOLUME II)
+
+N: Warhammer 4o ooo, The Fırst Heretıc Audiobook
