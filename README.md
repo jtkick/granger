@@ -1,46 +1,37 @@
 # Auburn
 
-https://www.googleapis.com/books/v1/volumes?q=
+Auburn is a personal project to create an automated audiobook organizer and scraper.
 
-https://stackoverflow.com/questions/20716842/python-download-images-from-google-image-search
+It is meant to be a layer between youtube-dl and Plex to make downloading and adding audiobooks to my Plex server fully automated and painless. The program will guess a title based solely on the filename, rewrite the tags and filename, download the appropriate cover art for each audiobook, and move it to the specified location given in the config file.
 
-book title book author audiobook cover -abridged -summary -sample
+This is my first project outside of academia and my first ever Python project, so it is not expected to be perfectly stable for awhile. Any critiques or contributions are welcome.
+
+# Usage
+
+To use Auburn, simply call:
+
+> $ ./auburn.py /path/to/audiobook/files/
+
+The program will iterate through all the files in the given directory and process them one by one. It is only designed to handle .ogg files, but will likely work with other major audio containers. There is no support for multi-file books yet.
 
 # Installation
 
-Install Google Images Downloader
+Install Google Images Downloader to download cover art
 
-$ pip install google_images_download
+> $ pip install google_images_download
 
-Install Google API Python Client
+Install Requests to handle Google Books API response
 
-https://developers.google.com/api-client-library/python/apis/books/v1
+> $ pipenv install requests
 
-$ pip install --upgrade google-api-python-client
+Install Levenshtein package to compare strings
 
-Install Requests
+> $ pip install python-Levenshtein
 
-$ pipenv install requests
+Install Mutagen to write audio file tags
 
-# Google Books API Test Strings
+> $ pip install mutagen
 
-These are likely to yield wrong results, so they are meant to test the string "cleansing" and Google API search.
+Clone repository
 
-Y = String search currently yields correct result
-
-N = String search currently yields incorrect result
-
-
-Y: Complete and Full with Numbers by John MacQueen
-
-Y: GRIMM'S FAIRY TALES by the Brothers Grimm - FULL Audio Book | GreatestAudioBooks.com
-
-Y: 20.000 Leagues Under the Sea - Jules Verne [Audiobook]
-
-Y: The Butcher: Anatomy of a Mafia Psychopath 1 Audiobooks #1 * Philip Carlo 
-
-Y: Forrest Gump - Winston Groom. Audiobook Pl. Książka czytana.
-
-Y: AudioBook A Paixão de Nosso Senhor Jesus Cristo - Sto Afonso Maria de Ligório (VOLUME II)
-
-N: Warhammer 4o ooo, The Fırst Heretıc Audiobook
+> $ git clone 
