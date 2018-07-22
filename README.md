@@ -34,4 +34,4 @@ Install Mutagen to write audio file tags
 
 Clone repository
 
-> $ git clone 
+> $ git clone https://gitlab.com/jtkick/Auburn.git
