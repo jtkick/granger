@@ -2,7 +2,7 @@
 
 Auburn is a personal project to create an automated audiobook organizer and scraper.
 
-It is meant to be a layer between youtube-dl and Plex to make downloading and adding audiobooks to my Plex server fully automated and painless. The program will guess a title based solely on the filename, rewrite the tags and filename, download the appropriate cover art for each audiobook, and move it to the specified location given in the config file.
+It is meant to be a layer between youtube-dl and Plex to make downloading and adding audiobooks to my Plex server fully automated and painless. The program will guess a title based solely on the filename, rewrite the tags and filename, download the appropriate cover art for each audiobook, and move it to the specified location given in the AUDIOBOOK_DIR variable.
 
 This is my first project outside of academia and my first ever Python project, so it is not expected to be perfectly stable for awhile. Any critiques or contributions are welcome.
 
