@@ -10,12 +10,11 @@ import requests
 import json
 # For various system commands like moving and renaming files
 import os
-import shutil
 # For getting arguments
 import argparse
 # For comparing titles after Google Books API search
 import Levenshtein
-import re
+#import re
 # For reading and writing audio tags
 import mutagen
 
@@ -23,23 +22,21 @@ __author__ = "Jared Kick"
 __copyright__ = ""
 __credits__ = ["Jared Kick"]
 __license__ = "GPL"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __maintainer__ = "Jared Kick"
 __email__ = "jaredkick@gmail.com"
 __status__ = "Prototype"
 
 parser = argparse.ArgumentParser(description="Import audiobooks in directory.")
 parser.add_argument("directory")
-# Flag to delete original audio file
-parser.add_argument("-d", action="store_true")
 args = parser.parse_args()
 
 # This should be in a config file
-AUDIOBOOK_DIR = "/home/jared/Software/Development/Auburn/AUDIOBOOK_DIR/"
+AUDIOBOOK_DIR = "/home/jared/New_Audiobooks"
 
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
-WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full", "complete", "hd", "pdf", "abridged", "unabridged", "subtitles", ".com", ".net", ".org", "mp3", "mp4", "m4v", "m4a", "m4b"]
+WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full", "complete", "hd", "pdf", "abridged", "unabridged", "subtitles", ".com", ".net", ".org", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv"]
 
 # Special characters to remove from filename. '&' and ''' are NOT removed as these are sometimes helpful
 SPEC_CHARS = ['~', '`', '@', '$', '%', '^', '*', '_', '=', '<', '>', '(', ')', '[', ']', '{', '}', '\"', '|', '\\', '+', '-', ':', '#', '/', '!', '?', ',', '.']
@@ -65,8 +62,8 @@ class Library:
         pass
 
     def __init__(self, library_dir):
-        if (os.is_dir(library_dir)):
-            base_dir = library_dir
+        if (os.path.isdir(library_dir)):
+            self.base_dir = library_dir
         else:
             raise NotADirectoryError(library_dir + ": not a valid directory")
 
@@ -74,19 +71,19 @@ class Library:
     # This should not be called until tags have been written, and a cover has
     # been found and downloaded
     def add_book(self, book):
-        if (book is not Audiobook):
-            raise TypeError("Illegal type: Expecting Audiobook")
+        #if (book is not Audiobook):
+        #    raise TypeError("Illegal type: Expecting Audiobook")
 
         new_location = os.path.join(self.base_dir, book.author)
 
         # If directory doesn't exist, make one
-        if (not os.is_dir(new_location)):
+        if (not os.path.isdir(new_location)):
             self.add_author(book.author)
 
         new_location = os.path.join(new_location, book.title)
 
         # Make sure title directory exists
-        if (not os.is_dir(new_location)):
+        if (not os.path.isdir(new_location)):
             os.mkdir(new_location)
 
         # Get audio file extension
@@ -95,8 +92,6 @@ class Library:
         new_location = os.path.join(new_location, (book.title + file_extension))
 
         # Move audio file
-        if (args.d):
-
         os.rename(book.audio_location, new_location)
 
         # Update location in class
@@ -119,7 +114,7 @@ class Library:
     
     def add_author(self, author):
         new_location = os.path.join(self.base_dir, author)
-        if (os.is_dir(new_location)):
+        if (os.path.isdir(new_location)):
             return
         else:
             os.mkdir(new_location)
@@ -143,9 +138,8 @@ class Audiobook:
     author = ""
     publisher = ""
     genre = ""
-    year = 0
+    year = ""
     description = ""
-    is_excerpt = False
 
     # Keep track of the current absolute path of the audiobook file and
     # it's corresponding cover file
@@ -158,9 +152,10 @@ class Audiobook:
         self.author = ""
         self.publisher = ""
         self.genre = ""
-        self.year = 0
+        self.year = ""
         self.description = ""
-        self.is_excerpt = False
+        self.audio_location = ""
+        self.image_location = ""
 
     def __init__(self, location):
         self.title = ""
@@ -168,10 +163,10 @@ class Audiobook:
         self.author = ""
         self.publisher = ""
         self.genre = ""
-        self.year = 0
+        self.year = ""
         self.description = ""
         self.audio_location = location
-        self.is_excerpt = False
+        self.image_location = ""
 
     # Print audiobook, mostly for debugging and testing purposes
     def __str__(self):
@@ -187,10 +182,10 @@ class Audiobook:
     # Write tags to audio file
     def write_tags(self):
         # Assume it's .ogg for now, add more functionality when this works properly
-        try:
-            audio_file = OggVorbis(self.audio_location)
-        except MutagenError:
-            print("Loading failed :(")
+        #try:
+        audio_file = mutagen.File(self.audio_location)
+        #except MutagenError:
+        #    print("Loading failed :(")
 
         audio_file["TITLE"] = self.title
         audio_file["ALBUM"] = self.title
@@ -217,66 +212,71 @@ class Audiobook:
         # Keep hold of location and name for later
         self.image_location = paths[search_term][0]
 
-    # Search Google Books API for information about book
-    def get_info(self):
-        # Get filename
-        search_term = os.path.basename(self.audio_location)
-        print("Getting info for: " + search_term)
 
-        # Get rid of file extension
-        print("Removing extension for: " + search_term)
-        search_term = os.path.splitext(search_term)[0]
+def main():
+    library = Library(AUDIOBOOK_DIR)
+
+    # Iterate through folder
+    for audio_file in os.listdir(args.directory):
+
+        # Create object that we will be working with
+        print(AUDIOBOOK_DIR)
+        book = Audiobook(os.path.join(args.directory, audio_file))
+
+        # Cleanse filename
+        # For now, we are assuming all files are .ogg format and have no tags, so just use  filenames
+        search_term = os.path.splitext(audio_file)[0]
 
         # We will work with lowercase strings
         search_term = search_term.lower()
 
-        # Set reminder if file is an excerpt
-        if "excerpt" in search_term:
-            print("File: \"" + search_term + "\" is an excerpt.")
-            self.is_excerpt = True
-            search_term.replace("excerpt", '')
+        # If file contains "excerpt", delete it
 
         # Remove unhelpful words
-        print("Removing unhelpful words.")
+        print("Removing unhelpful words from filename...")
         for word in WORDS:
-            search_term.replace(word, ' ')
+            search_term = search_term.replace(word, ' ')
 
         # Remove special characters
-        print("Removing unhelpful characters.")
+        print("Removing unhelpful characters from filename...")
         for char in SPEC_CHARS:
-            search_term.replace(char, '')
+            search_term = search_term.replace(char, '')
 
-        # Handle chapters
+        # Handle chapters/parts
         # We'll get back to this
 
         # Search Google Books API
-        print("Sending Google Books API request.")
+        print("Searching Google API for: \"" + search_term + "\"...")
         response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
-                            search_term.replace(' ', '+'))
+                                search_term.replace(' ', '+'))
 
         # Make JSON response readable
-        print("Loading response.")
-        response = json.loads(response)
+        response = json.loads(response.text)
+
 
         # Compare titles by iterating through titles and seeing which ones match original
         # While Google Books search is good, occasionally it returns books that are 
         # clearly not a match, so we will crosscheck the result with the original string
         # and see which one is the closest
         # For now we will use the Levenshtein algorithm to compute similarity
-        print("Finding closest match.")
-        match
+        print("Comparing results to original title...")
+        match = ""
         ratio = 0.0
         for item in response["items"]:
-            response_title = item["volumeInfo"]["title"]
-            response_subtitle = item["volumeInfo"]["subtitle"]
-            response_author = item["volumeInfo"]["authors"]["0"]
-            # Try once without subtitle added to test string
+            response_title = ""
+            response_subtitle = ""
+            response_author = ""
+            if "title" in item["volumeInfo"]:
+                response_title = item["volumeInfo"]["title"]
+            if "subtitle" in item["volumeInfo"]:
+                response_subtitle = item["volumeInfo"]["subtitle"]
+            if "authors" in item["volumeInfo"]:
+                response_author = item["volumeInfo"]["authors"][0]
             if (Levenshtein.ratio(response_title + " " +
                                   response_author, search_term) > ratio):
                 match = item["volumeInfo"]
                 ratio = Levenshtein.ratio(response_title + " " +
                                           response_author, search_term)
-            # Try again WITH subtitle added to test string
             if (Levenshtein.ratio(response_title + " " +
                                   response_subtitle + " " +
                                   response_author, search_term) > ratio):
@@ -286,98 +286,38 @@ class Audiobook:
                                           response_author, search_term)
 
         # Write match info to Audiobook object
-        print("Capturing book info.")
-        self.title = match["title"]
-        self.subtitle = match["subtitle"]
-        self.author = match["authors"]["0"]
-        self.publisher = match["publisher"]
-        self.genre = match["categories"]["0"]
-        self.year = re.match(r"(?<!\d)\d{4}(?!\d", match["publishedDate"])
-        self.description = match["description"]
+        if "title" in match:
+            book.title = match["title"]
+        if "subtitle" in match:
+            book.subtitle = match["subtitle"]
+        if "authors" in match:
+            book.author = match["authors"][0]
+        if "publisher" in match:
+            book.publisher = match["publisher"]
+        if "categories" in match:
+            book.genre = match["categories"][0]
+        if "publishedDate" in match:
+            book.year = match["publishedDate"]
+            #book.year = re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"])
+        if "description" in match:
+            book.description = match["description"]
 
-# Iterate through folder
-for audio_file in os.listdir(args.directory):
-    
-    # Create library
-    library = Library(AUDIOBOOK_DIR)
+        # Keep an eye on what Google response is
+        print("Google says:")
+        print("Title:    " + book.title)
+        print("Subtitle: " + book.subtitle)
+        print("Author:   " + book.author)
 
-    # Create object that we will be working with
-    book = Audiobook(os.path(audio_file))
+        # Get cover image
+        print("Downloading book cover...")
+        book.get_cover()
 
-    # Cleanse filename
-    # For now, we are assuming all files are .ogg format and have no tags, so just use filenames
-    search_term = audio_file
+        # Add tags
+        print("Writing audio file tags...")
+        book.write_tags()
 
-    # We will work with lowercase strings
-    search_term.lower()
+        # Move to audiobooks folder
+        library.add_book(book)
 
-    # If file contains "excerpt", delete it
-
-    # Remove unhelpful words
-    for word in WORDS:
-        search_term.replace(word, ' ')
-
-    # Remove special characters
-    for char in SPEC_CHARS:
-        search_term.replace(char, '')
-
-    # Handle chapters/parts
-    # We'll get back to this
-
-    # Search Google Books API
-    response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
-                            search_term.replace(' ', '+'))
-
-    # Make JSON response readable
-    response = json.loads(response)
-
-    # Compare titles by iterating through titles and seeing which ones match original
-    # While Google Books search is good, occasionally it returns books that are 
-    # clearly not a match, so we will crosscheck the result with the original string
-    # and see which one is the closest
-    # For now we will use the Levenshtein algorithm to compute similarity
-    match
-    ratio = 0.0
-    for item in response["items"]:
-        response_title = item["volumeInfo"]["title"]
-        response_subtitle = item["volumeInfo"]["subtitle"]
-        response_author = item["volumeInfo"]["authors"]["0"]
-        if (Levenshtein.ratio(response_title + " " +
-                              response_author, search_term) > ratio):
-            match = item["volumeInfo"]
-            ratio = Levenshtein.ratio(response_title + " " +
-                                      response_author, search_term)
-        if (Levenshtein.ratio(response_title + " " +
-                              response_subtitle + " " +
-                              response_author, search_term) > ratio):
-            match = item["volumeInfo"]
-            ratio = Levenshtein.ratio(response_title + " " +
-                                      response_subtitle + " " +
-                                      response_author, search_term)
-
-    # Write match info to Audiobook object
-    book.title = match["title"]
-    book.subtitle = match["subtitle"]
-    book.author = match["authors"]["0"]
-    book.publisher = match["publisher"]
-    book.genre = match["categories"]["0"]
-    book.year = re.match(r"(?<!\d)\d{4}(?!\d", match["publishedDate"])
-    book.description = match["description"]
-
-    # Get cover image
-    book.get_cover()
-
-    # If '-d' file not given, make a copy of the original file
-    shutil.copy2(book.audio_location, )
-
-    # Add tags
-    book.write_tags()
-
-    # Move to audiobooks folder
-    library.add_book(book)
-
-
-
-
-
-
+if __name__ == "__main__":
+    main()
