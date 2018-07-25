@@ -29,6 +29,9 @@ __status__ = "Prototype"
 
 parser = argparse.ArgumentParser(description="Import audiobooks in directory.")
 parser.add_argument("directory")
+
+# Flag to delete original audio file
+parser.add_argument("-d", action="store_true")
 args = parser.parse_args()
 
 # This should be in a config file
@@ -211,6 +214,97 @@ class Audiobook:
 
         # Keep hold of location and name for later
         self.image_location = paths[search_term][0]
+    
+    # Search Google Books API for information about book
+    def get_info(self):
+        # Get filename
+        search_term = os.path.basename(self.audio_location)
+        print("Getting info for: " + search_term)
+
+        # Get rid of file extension
+        print("Removing extension for: " + search_term)
+        search_term = os.path.splitext(search_term)[0]
+
+        # We will work with lowercase strings
+        search_term = search_term.lower()
+
+        # Set reminder if file is an excerpt
+        if "excerpt" in search_term:
+            print("File: \"" + search_term + "\" is an excerpt.")
+            self.is_excerpt = True
+            search_term.replace("excerpt", '')
+
+        # Remove unhelpful words
+        print("Removing unhelpful words.")
+        for word in WORDS:
+            search_term.replace(word, ' ')
+
+        # Remove special characters
+        print("Removing unhelpful characters.")
+        for char in SPEC_CHARS:
+            search_term.replace(char, '')
+
+        # Handle chapters
+        # We'll get back to this
+
+        # Search Google Books API
+        print("Sending Google Books API request.")
+        response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
+                            search_term.replace(' ', '+'))
+
+        # Make JSON response readable
+        print("Loading response.")
+        response = json.loads(response)
+
+        # Compare titles by iterating through titles and seeing which ones match original
+        # While Google Books search is good, occasionally it returns books that are 
+        # clearly not a match, so we will crosscheck the result with the original string
+        # and see which one is the closest
+        # For now we will use the Levenshtein algorithm to compute similarity
+        print("Finding closest match.")
+        match
+        ratio = 0.0
+        for item in response["items"]:
+            response_title = item["volumeInfo"]["title"]
+            response_subtitle = item["volumeInfo"]["subtitle"]
+            response_author = item["volumeInfo"]["authors"]["0"]
+            # Try once without subtitle added to test string
+            if (Levenshtein.ratio(response_title + " " +
+                                  response_author, search_term) > ratio):
+                match = item["volumeInfo"]
+                ratio = Levenshtein.ratio(response_title + " " +
+                                          response_author, search_term)
+            # Try again WITH subtitle added to test string
+            if (Levenshtein.ratio(response_title + " " +
+                                  response_subtitle + " " +
+                                  response_author, search_term) > ratio):
+                match = item["volumeInfo"]
+                ratio = Levenshtein.ratio(response_title + " " +
+                                          response_subtitle + " " +
+                                          response_author, search_term)
+
+        # Write match info to Audiobook object
+        if "title" in match:
+            self.title = match["title"]
+        if "subtitle" in match:
+            self.subtitle = match["subtitle"]
+        if "authors" in match:
+            self.author = match["authors"][0]
+        if "publisher" in match:
+            self.publisher = match["publisher"]
+        if "categories" in match:
+            self.genre = match["categories"][0]
+        if "publishedDate" in match:
+            self.year = match["publishedDate"]
+            #book.year = re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"])
+        if "description" in match:
+            self.description = match["description"]
+
+        # Keep an eye on what Google response is
+        print("Google says:")
+        print("Title:    " + book.title)
+        print("Subtitle: " + book.subtitle)
+        print("Author:   " + book.author)
 
 
 def main():
@@ -285,28 +379,7 @@ def main():
                                           response_subtitle + " " +
                                           response_author, search_term)
 
-        # Write match info to Audiobook object
-        if "title" in match:
-            book.title = match["title"]
-        if "subtitle" in match:
-            book.subtitle = match["subtitle"]
-        if "authors" in match:
-            book.author = match["authors"][0]
-        if "publisher" in match:
-            book.publisher = match["publisher"]
-        if "categories" in match:
-            book.genre = match["categories"][0]
-        if "publishedDate" in match:
-            book.year = match["publishedDate"]
-            #book.year = re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"])
-        if "description" in match:
-            book.description = match["description"]
-
-        # Keep an eye on what Google response is
-        print("Google says:")
-        print("Title:    " + book.title)
-        print("Subtitle: " + book.subtitle)
-        print("Author:   " + book.author)
+        
 
         # Get cover image
         print("Downloading book cover...")
