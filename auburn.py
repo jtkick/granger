@@ -215,14 +215,14 @@ class Audiobook:
         # Keep hold of location and name for later
         self.image_location = paths[search_term][0]
     
-    # Search Google Books API for information about book
+    # Search Google Books API for information about book and
+    # write to Audiobook object
     def get_info(self):
         # Get filename
         search_term = os.path.basename(self.audio_location)
         print("Getting info for: " + search_term)
 
         # Get rid of file extension
-        print("Removing extension for: " + search_term)
         search_term = os.path.splitext(search_term)[0]
 
         # We will work with lowercase strings
@@ -235,17 +235,22 @@ class Audiobook:
             search_term.replace("excerpt", '')
 
         # Remove unhelpful words
-        print("Removing unhelpful words.")
         for word in WORDS:
             search_term.replace(word, ' ')
 
         # Remove special characters
-        print("Removing unhelpful characters.")
         for char in SPEC_CHARS:
             search_term.replace(char, '')
 
         # Handle chapters
         # We'll get back to this
+        # If chapter is found, it takes precedence over parts
+        # i.e. 
+
+        # Handle parts
+        # Since some assholes like to format parts backwards, i.e. part one
+        # of three is written 3/1, we will break it up and take the smallest
+        PART_IDENTIFIERS = [" part", " pt"]
 
         # Search Google Books API
         print("Sending Google Books API request.")
@@ -253,7 +258,6 @@ class Audiobook:
                             search_term.replace(' ', '+'))
 
         # Make JSON response readable
-        print("Loading response.")
         response = json.loads(response)
 
         # Compare titles by iterating through titles and seeing which ones match original
@@ -261,7 +265,6 @@ class Audiobook:
         # clearly not a match, so we will crosscheck the result with the original string
         # and see which one is the closest
         # For now we will use the Levenshtein algorithm to compute similarity
-        print("Finding closest match.")
         match
         ratio = 0.0
         for item in response["items"]:
@@ -282,6 +285,8 @@ class Audiobook:
                 ratio = Levenshtein.ratio(response_title + " " +
                                           response_subtitle + " " +
                                           response_author, search_term)
+
+        # TODO: FIND CUT-OFF LEVENSHTEIN RATIO
 
         # Write match info to Audiobook object
         if "title" in match:
@@ -307,6 +312,8 @@ class Audiobook:
         print("Author:   " + book.author)
 
 
+
+# Subdirectories are ussumed to be separate books and will be treated as such
 def main():
     library = Library(AUDIOBOOK_DIR)
 
