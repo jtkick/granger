@@ -295,6 +295,8 @@ class Audiobook:
             self.subtitle = match["subtitle"]
         if "authors" in match:
             self.author = match["authors"][0]
+        else:
+            self.author = "Unknown Author"
         if "publisher" in match:
             self.publisher = match["publisher"]
         if "categories" in match:
