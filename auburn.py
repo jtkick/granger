@@ -2,6 +2,9 @@
 
 # A simple script that takes audiobook files, renames them, and tags them properly
 
+# Config file
+import config.py as config
+
 # For downloading audiobook cover art
 from google_images_download import google_images_download
 # For using the Google Book API
@@ -10,6 +13,7 @@ import requests
 import json
 # For various system commands like moving and renaming files
 import os
+from shutil import copy2
 # For getting arguments
 import argparse
 # For comparing titles after Google Books API search
@@ -95,7 +99,10 @@ class Library:
         new_location = os.path.join(new_location, (book.title + file_extension))
 
         # Move audio file
-        os.rename(book.audio_location, new_location)
+        if DELETE:
+            os.rename(book.audio_location, new_location)
+        else:
+            os.copy2(book.audio_location, new_location)
 
         # Update location in class
         book.audio_location = new_location
@@ -143,6 +150,7 @@ class Audiobook:
     genre = ""
     year = ""
     description = ""
+    is_excerpt = False
 
     # Keep track of the current absolute path of the audiobook file and
     # it's corresponding cover file
@@ -157,6 +165,7 @@ class Audiobook:
         self.genre = ""
         self.year = ""
         self.description = ""
+        self.is_excerpt = False
         self.audio_location = ""
         self.image_location = ""
 
@@ -168,6 +177,7 @@ class Audiobook:
         self.genre = ""
         self.year = ""
         self.description = ""
+        self.is_excerpt = False
         self.audio_location = location
         self.image_location = ""
 
@@ -215,8 +225,8 @@ class Audiobook:
         # Keep hold of location and name for later
         self.image_location = paths[search_term][0]
     
-    # Search Google Books API for information about book and
-    # write to Audiobook object
+    # Search Google Books API for information about book based on
+    # file name and write to Audiobook object
     def get_info(self):
         # Get filename
         search_term = os.path.basename(self.audio_location)
@@ -253,7 +263,7 @@ class Audiobook:
         PART_IDENTIFIERS = [" part", " pt"]
 
         # Search Google Books API
-        print("Sending Google Books API request.")
+        print("Sending Google Books API request...")
         response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
                             search_term.replace(' ', '+'))
 
@@ -326,69 +336,9 @@ def main():
         print(AUDIOBOOK_DIR)
         book = Audiobook(os.path.join(args.directory, audio_file))
 
-        # Cleanse filename
-        # For now, we are assuming all files are .ogg format and have no tags, so just use  filenames
-        search_term = os.path.splitext(audio_file)[0]
-
-        # We will work with lowercase strings
-        search_term = search_term.lower()
-
-        # If file contains "excerpt", delete it
-
-        # Remove unhelpful words
-        print("Removing unhelpful words from filename...")
-        for word in WORDS:
-            search_term = search_term.replace(word, ' ')
-
-        # Remove special characters
-        print("Removing unhelpful characters from filename...")
-        for char in SPEC_CHARS:
-            search_term = search_term.replace(char, '')
-
-        # Handle chapters/parts
-        # We'll get back to this
-
-        # Search Google Books API
-        print("Searching Google API for: \"" + search_term + "\"...")
-        response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
-                                search_term.replace(' ', '+'))
-
-        # Make JSON response readable
-        response = json.loads(response.text)
-
-
-        # Compare titles by iterating through titles and seeing which ones match original
-        # While Google Books search is good, occasionally it returns books that are 
-        # clearly not a match, so we will crosscheck the result with the original string
-        # and see which one is the closest
-        # For now we will use the Levenshtein algorithm to compute similarity
-        print("Comparing results to original title...")
-        match = ""
-        ratio = 0.0
-        for item in response["items"]:
-            response_title = ""
-            response_subtitle = ""
-            response_author = ""
-            if "title" in item["volumeInfo"]:
-                response_title = item["volumeInfo"]["title"]
-            if "subtitle" in item["volumeInfo"]:
-                response_subtitle = item["volumeInfo"]["subtitle"]
-            if "authors" in item["volumeInfo"]:
-                response_author = item["volumeInfo"]["authors"][0]
-            if (Levenshtein.ratio(response_title + " " +
-                                  response_author, search_term) > ratio):
-                match = item["volumeInfo"]
-                ratio = Levenshtein.ratio(response_title + " " +
-                                          response_author, search_term)
-            if (Levenshtein.ratio(response_title + " " +
-                                  response_subtitle + " " +
-                                  response_author, search_term) > ratio):
-                match = item["volumeInfo"]
-                ratio = Levenshtein.ratio(response_title + " " +
-                                          response_subtitle + " " +
-                                          response_author, search_term)
-
-        
+        # Get book information
+        print("Getting book information...")
+        book.get_info()
 
         # Get cover image
         print("Downloading book cover...")
