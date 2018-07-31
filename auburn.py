@@ -99,12 +99,37 @@ class Library:
         new_location = os.path.join(new_location, (book.title + file_extension))
 
         # Move audio file
-        if DELETE:
-            os.rename(book.audio_location, new_location)
-        else:
-            os.copy2(book.audio_location, new_location)
+        if os.path.isfile(new_location):
+            if OVERWRITE == "bitrate":
+                old_file = mutagen.File(new_location)
+                new_file = mutagen.File(book.audio_location)
+                # If new file's bitrate is higher, remove the old file
+                if new_file.info.bitrate > old_file.info.bitrate:
+                    # Remove old file and add new file
+                    os.remove(new_location)
+                    os.copy2(book.audio_location, new_location)
+                    book.audio_location = new_location
+            else if OVERWRITE == "size":
+                # If new file is bigger, remove the old file
+                if os.path.getsize(book.audio_location) > os.path.getsize(new_location):
+                    # Remove old file and add new file
+                    os.remove(new_location)
+                    os.copy2(book.audio_location, new_location)
+                    book.audio_location = new_location
+            else if OVERWRITE == "always":
+                # Remove old file and add new file
+                os.remove(new_location)
+                os.copy2(book.audio_location, new_location)
+                book.audio_location = new_location
+            else if OVERWRITE != "never":
+                print("Invalid value for \"OVERWRITE\" in configuration file.")
+                raise ValueError
 
-        # Update location in class
+        # Delete audio file
+        if DELETE:
+            os.remove(book.audio_location)
+
+        # Update location in class regardless
         book.audio_location = new_location
 
         # Get image file extension
@@ -117,6 +142,8 @@ class Library:
                                     ("folder" + file_extension))
 
         # Move and rename file to "folder" with the original extension
+        if os.path.isfile(new_location):
+            os.remove(new_location)
         os.rename(book.image_location, new_location)
 
         # Update book image location
@@ -191,6 +218,11 @@ class Audiobook:
                "Description: " + self.description + "\n" +
                "Audio Loc.:  " + self.audio_location + "\n" +
                "Image Loc.:  " + self.image_location)
+
+    # Move or copy audio file
+    def move(self, new_location):
+
+
 
     # Write tags to audio file
     def write_tags(self):
