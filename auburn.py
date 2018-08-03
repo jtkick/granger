@@ -38,9 +38,6 @@ parser.add_argument("directory")
 parser.add_argument("-d", action="store_true")
 args = parser.parse_args()
 
-# This should be in a config file
-AUDIOBOOK_DIR = "/home/jared/New_Audiobooks"
-
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
 WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full", "complete", "hd", "pdf", "abridged", "unabridged", "subtitles", ".com", ".net", ".org", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv"]
@@ -344,8 +341,8 @@ class Audiobook:
         if "categories" in match:
             self.genre = match["categories"][0]
         if "publishedDate" in match:
-            self.year = match["publishedDate"]
-            #book.year = re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"])
+            #self.year = match["publishedDate"]
+            self.year = re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"])
         if "description" in match:
             self.description = match["description"]
 
@@ -361,8 +358,14 @@ class Audiobook:
 def main():
     library = Library(AUDIOBOOK_DIR)
 
+    additional_dirs = []
+
     # Iterate through folder
     for audio_file in os.listdir(args.directory):
+
+        if os.path.isdir(audio_file):
+            additional_dirs.append(audio_file)
+        else:
 
         # Create object that we will be working with
         print(AUDIOBOOK_DIR)

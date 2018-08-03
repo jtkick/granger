@@ -81,7 +81,8 @@ TITLES = [
     "COLLECTED ARTICLES OF FREDRICK DOUGLASS",
     "وداع وطن | محمود سامي البارودي - مصر | ALWATAN - FULL AudioBook | Greatest Audio Books",
     "وداع وطن | محمود سامي البارودي - مصر",
-    "ごんぎつね: 新美 南吉 (Gongitsune) Nankichi Niimi - FULL AudioBook | 日本人 Nipponjin オーディオブック Ōdiobukku"
+    "ごんぎつね: 新美 南吉 (Gongitsune) Nankichi Niimi - FULL AudioBook | 日本人 Nipponjin オーディオブック Ōdiobukku",
+    "Yoga Sutras of Patanjali: The Book of the Spiritual Man (FULL Audiobook)"
 ]
 
 SUCCESS = []
