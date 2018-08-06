@@ -105,19 +105,16 @@ class Library:
                     # Remove old file and add new file
                     os.remove(new_location)
                     os.copy2(book.audio_location, new_location)
-                    book.audio_location = new_location
             else if OVERWRITE == "size":
                 # If new file is bigger, remove the old file
                 if os.path.getsize(book.audio_location) > os.path.getsize(new_location):
                     # Remove old file and add new file
                     os.remove(new_location)
                     os.copy2(book.audio_location, new_location)
-                    book.audio_location = new_location
             else if OVERWRITE == "always":
                 # Remove old file and add new file
                 os.remove(new_location)
                 os.copy2(book.audio_location, new_location)
-                book.audio_location = new_location
             else if OVERWRITE != "never":
                 print("Invalid value for \"OVERWRITE\" in configuration file.")
                 raise ValueError
