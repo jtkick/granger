@@ -363,25 +363,24 @@ def main():
         if os.path.isdir(audio_file):
             additional_dirs.append(audio_file)
         else:
+            # Create object that we will be working with
+            print(AUDIOBOOK_DIR)
+            book = Audiobook(os.path.join(args.directory, audio_file))
 
-        # Create object that we will be working with
-        print(AUDIOBOOK_DIR)
-        book = Audiobook(os.path.join(args.directory, audio_file))
+            # Get book information
+            print("Getting book information...")
+            book.get_info()
 
-        # Get book information
-        print("Getting book information...")
-        book.get_info()
+            # Get cover image
+            print("Downloading book cover...")
+            book.get_cover()
 
-        # Get cover image
-        print("Downloading book cover...")
-        book.get_cover()
+            # Add tags
+            print("Writing audio file tags...")
+            book.write_tags()
 
-        # Add tags
-        print("Writing audio file tags...")
-        book.write_tags()
-
-        # Move to audiobooks folder
-        library.add_book(book)
+            # Move to audiobooks folder
+            library.add_book(book)
 
 if __name__ == "__main__":
     main()
