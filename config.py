@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Auburn configuration file
-# https://martin-thoma.com/configuration-files-in-python/
 
 # Location of audiobook library
 # This is where all new audiobooks given in the arguments will be stored
@@ -36,8 +35,22 @@ PROMPT_LEVEL = 2
 OVERWRITE = "bitrate"
 
 # Acceptable file extensions
-# This is a list of the files that are considered acceptable audio files
-# that will be processed as audiobooks. Any extension not in this list will
-# be ignored when importing. Bear in mind there is no guarantee that mutagen
+# This is a list of the files that are considered acceptable audio files that will be processed as audiobooks.
+# Any extension not in this list will be ignored when importing. Bear in mind there is no guarantee that mutagen
 # will be able to handle any audio formats other than what is listed.
 FORMATS = [".ogg", ".flac", ".mp3", ".mp4"]
+
+# Words to remove that tend to appear in file names but don't describe the book
+# These words (especially "audiobook") tend to screw up Google Books searches
+WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full", "complete", "hd", "pdf", "abridged",
+         "unabridged", "subtitles", ".com", ".net", ".org", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
+
+# Special characters to remove from filename. '&' is NOT removed as these are sometimes helpful
+SPEC_CHARS = ['~', '`', '\'', '@', '$', '%', '^', '*', '=', '<', '>', '(', ')', '[', ']', '{', '}', '\"', '|', '\\',
+              '+', '-', ':', '#', '/', '!', '?', ',', '.', '_']
+
+# Words and phrases that would imply the file is a chapter
+CHAP = ["chap.", "chtp", "ch", "chapter", "chap"]
+
+# Words and phrases that would imply the file is part of a whole book
+PART_IDENTIFIERS = [" part", " pt"]
