@@ -77,6 +77,11 @@ class Audiobook:
 
         audio_file.save()
 
+    # Simply returns last element of a list
+    # Used when sorting the list of matches received from Google Books
+    def get_ratio(result):
+        return result[-1]
+
     # Get a cover image for the audiobook
     def get_cover(self):
         self.image_location = auburn.get_image("\"" + self.author + " " + self.title + " audiobook\"")
@@ -149,8 +154,7 @@ class Audiobook:
             # TODO: STORE ALL RESULTS IN DESCENDING ORDER OF SIMILARITY TO SEARCH TERM, SO IF THE
             # USER WANTS TO SEE MORE, WE CAN SHOW THEM
 
-            match = ""
-            ratio = 0.0
+            matches = []
             if "items" in response:
                 for item in response["items"]:
                     # Search using just the title and author
@@ -164,10 +168,8 @@ class Audiobook:
                     # Remove special characters
                     for char in config.SPEC_CHARS:
                         response_str = response_str.replace(char, ' ')
-                    test_ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
-                    if test_ratio > ratio:
-                        match = item["volumeInfo"]
-                        ratio = test_ratio
+                    ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
+                    result = [ratio, item["volumeInfo"]]
 
                     # Search again, but this time including the subtitle
                     response_str = ""
@@ -181,76 +183,101 @@ class Audiobook:
                     # Remove special characters
                     for char in config.SPEC_CHARS:
                         response_str = response_str.replace(char, ' ')
-                    test_ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
-                    if test_ratio > ratio:
-                        match = item["volumeInfo"]
-                        ratio = test_ratio
+                    ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
+                    if ratio > result[0]:
+                        result = item["volumeInfo"]
 
-            # Successful search
-            if ratio >= 0.5:
-                # Skip user prompt if prompt level is 'never' or 'medium'
-                if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
-                    info_correct = True
-            # Not quite sure
-            if ratio < 0.5 and ratio >= 0.25:
-                # Skip user prompt if prompt level is 'never'
-                if config.PROMPT_LEVEL == 0:
-                    info_correct = True
-            # Bad match
-            if ratio < 0.25:
-                # Skip user prompt if prompt level is 'never' and throw out file
-                if config.PROMPT_LEVEL == 0:
-                    info_correct = True
-                    self.is_valid = False
-                    return
+                    # Add best match of this run to list of matches
+                    matches.append(result)
 
-            if ratio >= 0.5:
-                print(colors.OKGREEN + "Similarity: Good " +
-                      colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
-            elif ratio < 0.5 and ratio >= 0.25:
-                print(colors.WARNING + "Similarity: Moderate " +
-                      colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
-            elif ratio < 0.25:
-                print(colors.FAIL + "Similarity: Bad " +
-                      colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+            # Sort list according to similarity ratio in descending order
+            matches.sort(key=get_ratio, reverse=true) 
 
-            # Display what the program found
-            print(colors.OKBLUE + "Filename: " + colors.WARNING + filename)
-            if "title" in match:
-                print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["title"])
-            if "subtitle" in match:
-                print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["subtitle"])
-            if "authors" in match:
-                print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["authors"][0])
+            # Best match should be at the top of the list
+            selection = 0
 
-            # Prompt user if necessary
-            if not info_correct:
-                valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'S', 's', 'B', 'b', '']
-                user_input = ""
-                while (user_input not in valid_options):
-                    # Prompt user for input
-                    print(colors.WARNING + "Is this information correct?")
-                    print(colors.WARNING + "Options: [A]pply, [M]ore Candidates, [E]nter Search, [S]kip, A[B]ort")
-                    user_input = input(colors.WARNING + "Command:" + colors.RESET + " ")
+            user_input = "NULL"
+            while (user_input == "NULL"):
+                # Remove item from list
+                match = matches.pop(selection)
+                ratio = match.get_ratio()
 
-                if user_input == 'A' or user_input == 'a':
-                    # Exit loop and write match information
-                    info_correct = True
-                elif user_input == 'M' or user_input == 'm':
-                    # TODO: SHOW USER ALL OTHER OPTIONS
-                    pass
-                elif user_input == 'E' or user_input == 'e':
-                    # Do it again with new information
-                    search_term = input("Title: ")
-                    search_term += " " + input("Author: ")
-                    search_term = search_term.lower()
-                elif user_input == 'S' or user_input == 's':
-                    # Drop this file and move on
-                    self.is_valid = False
-                    return
-                elif user_input == 'B' or user_input == 'b':
-                    # Pull the plug
-                    sys.exit()
+                # Successful search
+                if ratio >= 0.5:
+                    # Skip user prompt if prompt level is 'never' or 'medium'
+                    if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
+                        info_correct = True
+                    # Notify user how close of a match it was
+                    print(colors.OKGREEN + "Similarity: Good " +
+                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+                # Not quite sure
+                if ratio < 0.5 and ratio >= 0.25:
+                    # Skip user prompt if prompt level is 'never'
+                    if config.PROMPT_LEVEL == 0:
+                        info_correct = True
+                    # Notify user how close of a match it was
+                    print(colors.WARNING + "Similarity: Moderate " +
+                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+                # Bad match
+                if ratio < 0.25:
+                    # Skip user prompt if prompt level is 'never' and throw out file
+                    if config.PROMPT_LEVEL == 0:
+                        info_correct = True
+                        self.is_valid = False
+                        return
+                    # Notify user how close of a match it was
+                    print(colors.FAIL + "Similarity: Bad " +
+                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+
+                # Display what the program found
+                print(colors.OKBLUE + "Filename: " + colors.WARNING + filename)
+                if "title" in match:
+                    print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["title"])
+                if "subtitle" in match:
+                    print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["subtitle"])
+                if "authors" in match:
+                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["authors"][0])
+
+                # Prompt user if necessary
+                if not info_correct:
+                    valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'S', 's', 'B', 'b', '']
+                    while (user_input not in valid_options):
+                        # Prompt user for input
+                        print(colors.WARNING + "Is this information correct?")
+                        print(colors.WARNING + "Options: [A]pply, [M]ore Candidates, [E]nter Search, [S]kip, A[B]ort")
+                        user_input = input(colors.WARNING + "Command:" + colors.RESET + " ")
+
+                    if user_input == 'A' or user_input == 'a':
+                        # Exit loop and write match information
+                        info_correct = True
+
+                    elif user_input == 'M' or user_input == 'm':
+                        print()
+                        i = 1
+                        for item in matches:
+                            print(i + " - " + ratio + " - " + match.title + ": " + match.subtitle + " - " + match.author)
+                            i += 1
+
+                        selection = -1
+                        while (selection <= 0 or selection > len(matches)):
+                            input("\nEnter selection: ")
+                        # Adjust selection for indexing by 0
+                        selection -= 1
+
+                    elif user_input == 'E' or user_input == 'e':
+                        # Do it again with new information
+                        search_term = input("Title: ")
+                        search_term += " " + input("Author: ")
+                        search_term = search_term.lower()
+
+                    elif user_input == 'S' or user_input == 's':
+                        # Drop this file and move on
+                        self.is_valid = False
+                        return
+
+                    elif user_input == 'B' or user_input == 'b':
+                        # Pull the plug
+                        sys.exit()
 
         # Write match info to Audiobook object
         if "title" in match:

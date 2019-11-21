@@ -47,6 +47,9 @@ parser.add_argument("-r", "--recursive", help="Recurse down through given direct
 # Flag to print status lines
 parser.add_argument("-v", "--verbose", help="Increase output verbosity.", action="store_true")
 
+# Flag to not move or change files
+parser.add_argument("-u", "--dry-run", help="Do not move or edit files.", action="store_true")
+
 # Parse all arguments
 args = parser.parse_args()
 
@@ -484,8 +487,9 @@ def main():
             book.get_info()
 
             # Before we try to input the book, we need to make sure its
-            # a valid file and not just some .txt file
-            if book.is_valid:
+            # a valid file and not just some .txt file as well as make
+            # sure this is not a dry run test.
+            if book.is_valid and not args.dry_run:
                 # Get cover image
                 if args.verbose:
                     print("Downloading book cover...")
