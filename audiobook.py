@@ -24,6 +24,7 @@ class Audiobook:
 
     # Keep track of the current relative path of the audiobook file and
     # it's corresponding cover file
+    directory = ""
     audio_location = ""
     image_location = ""
 
@@ -229,6 +230,8 @@ class Audiobook:
                     print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["info"]["subtitle"])
                 if "authors" in match["info"]:
                     print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["info"]["authors"][0])
+                else:
+                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + "Unknown Author")
 
                 # Prompt user if necessary
                 user_input = "NULL"
@@ -248,7 +251,10 @@ class Audiobook:
                         print()
                         i = 1
                         for item in matches:
-                            print(i + " - " + item["ratio"] + " - " + item["info"]["title"] + " " + item["info"]["subtitle"] + " - " + item["info"]["authors"][0])
+                            print(colors.WARNING + i +
+                                  " - " + "{:.0%}".format(match["ratio"]) +
+                                  " - " + item["info"]["title"] + " " + item["info"]["subtitle"] +
+                                  " - " + item["info"]["authors"][0])
                             i += 1
 
                         selection = -1
@@ -277,20 +283,20 @@ class Audiobook:
                         sys.exit()
 
         # Write match info to Audiobook object
-        if "title" in match:
-            self.title = match["title"]
-        if "subtitle" in match:
-            self.subtitle = match["subtitle"]
-        if "authors" in match:
-            self.author = match["authors"][0]
+        if "title" in match["info"]:
+            self.title = match["info"]["title"]
+        if "subtitle" in match["info"]:
+            self.subtitle = match["info"]["subtitle"]
+        if "authors" in match["info"]:
+            self.author = match["info"]["authors"][0]
         else:
             self.author = "Unknown Author"
-        if "publisher" in match:
-            self.publisher = match["publisher"]
-        if "categories" in match:
-            self.genre = match["categories"][0]
-        if "publishedDate" in match:
+        if "publisher" in match["info"]:
+            self.publisher = match["info"]["publisher"]
+        if "categories" in match["info"]:
+            self.genre = match["info"]["categories"][0]
+        if "publishedDate" in match["info"]:
             # Find four digit number
-            self.year = str(re.match(r"(?<!\d)\d{4}(?!\d)", match["publishedDate"]))
-        if "description" in match:
-            self.description = match["description"]
+            self.year = str(re.match(r"(?<!\d)\d{4}(?!\d)", match["info"]["publishedDate"]))
+        if "description" in match["info"]:
+            self.description = match["info"]["description"]
