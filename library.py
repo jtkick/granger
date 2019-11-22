@@ -95,6 +95,10 @@ class Library:
                 return True
         return False
 
+    # TODO: ADD 'GET_AUTHOR' THAT RETURNS AUTHOR, CREATING ONE IF NECESSARY
+    def get_author(self, name):
+        pass
+        
     def add_author(self, author):
         new_location = os.path.join(self.base_dir, author)
         if (os.path.isdir(new_location)):

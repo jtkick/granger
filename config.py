@@ -5,7 +5,7 @@
 # This is where all new audiobooks given in the arguments will be stored
 # Structure assumed to be: /path/to/library/author/book/book.ogg
 # Ex: AUDIOBOOK_DIR = "/path/to/library/"
-AUDIOBOOK_DIR = "/home/jared/Audiobooks/"
+AUDIOBOOK_DIR = "$HOME/Audiobooks/"
 
 # Delete files after importing
 # If 'True', Auburn will remove original audio files after importing to library
@@ -14,7 +14,7 @@ AUDIOBOOK_DIR = "/home/jared/Audiobooks/"
 DELETE = True
 
 # Recurse down through directories
-# If 'True', Auburn will add all files in directory to the library including
+# If 'True', Auburn will add all files in the given directory to the library including
 # all files in subdirectories
 RECURSE = True
 
@@ -43,7 +43,7 @@ FORMATS = [".ogg", ".flac", ".mp3", ".mp4"]
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
 WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full", "complete", "hd", "pdf", "abridged",
-         "unabridged", "subtitles", ".com", ".net", ".org", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
+         "unabridged", "subtitles", ".com ", ".net ", ".org ", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
 
 # Special characters to remove from filename. '&' is NOT removed as these are sometimes helpful
 SPEC_CHARS = ['~', '`', '\'', '@', '$', '%', '^', '*', '=', '<', '>', '(', ')', '[', ']', '{', '}', '\"', '|', '\\',

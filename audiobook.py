@@ -22,7 +22,7 @@ class Audiobook:
     is_excerpt = False
     is_valid = False
 
-    # Keep track of the current absolute path of the audiobook file and
+    # Keep track of the current relative path of the audiobook file and
     # it's corresponding cover file
     audio_location = ""
     image_location = ""
@@ -79,8 +79,8 @@ class Audiobook:
 
     # Simply returns last element of a list
     # Used when sorting the list of matches received from Google Books
-    def get_ratio(result):
-        return result[-1]
+    def get_ratio(match):
+        return match["ratio"]
 
     # Get a cover image for the audiobook
     def get_cover(self):
@@ -150,10 +150,6 @@ class Audiobook:
             # While Google Books search is good, occasionally it returns books that are
             # clearly not a match, so we will crosscheck the result with the original string
             # and see which one is the closest
-
-            # TODO: STORE ALL RESULTS IN DESCENDING ORDER OF SIMILARITY TO SEARCH TERM, SO IF THE
-            # USER WANTS TO SEE MORE, WE CAN SHOW THEM
-
             matches = []
             if "items" in response:
                 for item in response["items"]:
@@ -169,7 +165,7 @@ class Audiobook:
                     for char in config.SPEC_CHARS:
                         response_str = response_str.replace(char, ' ')
                     ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
-                    result = [ratio, item["volumeInfo"]]
+                    match = {"ratio": ratio, "info": item["volumeInfo"]}
 
                     # Search again, but this time including the subtitle
                     response_str = ""
@@ -185,7 +181,7 @@ class Audiobook:
                         response_str = response_str.replace(char, ' ')
                     ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
                     if ratio > result[0]:
-                        result = item["volumeInfo"]
+                        match = {"ratio": ratio, "info": item["volumeInfo"]}
 
                     # Add best match of this run to list of matches
                     matches.append(result)
@@ -194,32 +190,28 @@ class Audiobook:
             matches.sort(key=get_ratio, reverse=true) 
 
             # Best match should be at the top of the list
-            selection = 0
+            match = matches.pop(0)
 
             user_input = "NULL"
             while (user_input == "NULL"):
-                # Remove item from list
-                match = matches.pop(selection)
-                ratio = match.get_ratio()
-
                 # Successful search
-                if ratio >= 0.5:
+                if match["ratio"] >= 0.5:
                     # Skip user prompt if prompt level is 'never' or 'medium'
                     if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
                         info_correct = True
                     # Notify user how close of a match it was
                     print(colors.OKGREEN + "Similarity: Good " +
-                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
                 # Not quite sure
-                if ratio < 0.5 and ratio >= 0.25:
+                if match["ratio"] < 0.5 and match["ratio"] >= 0.25:
                     # Skip user prompt if prompt level is 'never'
                     if config.PROMPT_LEVEL == 0:
                         info_correct = True
                     # Notify user how close of a match it was
                     print(colors.WARNING + "Similarity: Moderate " +
-                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
                 # Bad match
-                if ratio < 0.25:
+                if match["ratio"] < 0.25:
                     # Skip user prompt if prompt level is 'never' and throw out file
                     if config.PROMPT_LEVEL == 0:
                         info_correct = True
@@ -227,18 +219,19 @@ class Audiobook:
                         return
                     # Notify user how close of a match it was
                     print(colors.FAIL + "Similarity: Bad " +
-                          colors.BOLD + "(" + "{:.0%}".format(ratio) + ")" + colors.ENDC + " ")
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
 
                 # Display what the program found
                 print(colors.OKBLUE + "Filename: " + colors.WARNING + filename)
-                if "title" in match:
-                    print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["title"])
-                if "subtitle" in match:
-                    print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["subtitle"])
-                if "authors" in match:
-                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["authors"][0])
+                if "title" in match["info"]:
+                    print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["info"]["title"])
+                if "subtitle" in match["info"]:
+                    print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["info"]["subtitle"])
+                if "authors" in match["info"]:
+                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["info"]["authors"][0])
 
                 # Prompt user if necessary
+                user_input = "NULL"
                 if not info_correct:
                     valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'S', 's', 'B', 'b', '']
                     while (user_input not in valid_options):
@@ -255,20 +248,24 @@ class Audiobook:
                         print()
                         i = 1
                         for item in matches:
-                            print(i + " - " + ratio + " - " + match.title + ": " + match.subtitle + " - " + match.author)
+                            print(i + " - " + item["ratio"] + " - " + item["info"]["title"] + " " + item["info"]["subtitle"] + " - " + item["info"]["authors"][0])
                             i += 1
 
                         selection = -1
                         while (selection <= 0 or selection > len(matches)):
                             input("\nEnter selection: ")
-                        # Adjust selection for indexing by 0
-                        selection -= 1
+                            
+                        # Swap matches
+                        matches.append(match)
+                        match = matches.pop(selection-1)
+                        matches.sort(key=get_ratio, reverse=true) 
 
                     elif user_input == 'E' or user_input == 'e':
                         # Do it again with new information
                         search_term = input("Title: ")
                         search_term += " " + input("Author: ")
                         search_term = search_term.lower()
+                        user_input = "NULL"
 
                     elif user_input == 'S' or user_input == 's':
                         # Drop this file and move on
