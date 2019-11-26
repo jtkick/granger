@@ -3,12 +3,10 @@ import auburn
 import mutagen
 import os
 import shutil
-import colors
 import requests
 import argparse
 import sys
 import re
-
 
 # This is what we are going to use to build our new audiobook file
 class Audiobook:

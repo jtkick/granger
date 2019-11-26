@@ -2,9 +2,6 @@ class Library:
     base_dir = ""
     authors = {}
 
-    def __init__(self):
-        pass
-
     def __init__(self, library_dir):
         if (os.path.isdir(library_dir)):
             self.base_dir = library_dir
@@ -47,3 +44,7 @@ class Library:
 
         # Add newly created author to library object
         authors[name] = author
+        
+       
+if __name__ == "__Library__":
+    

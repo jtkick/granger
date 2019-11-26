@@ -19,6 +19,9 @@ import argparse
 # For comparing titles after Google Books API search
 import sys
 
+import library
+import audiobook
+
 
 import re
 
@@ -94,7 +97,7 @@ def main():
 
     # TODO: CHECK CONFIG AND ARGUMENTS
 
-    library = Library(config.AUDIOBOOK_DIR)
+    library = Library.Library(config.AUDIOBOOK_DIR)
 
     # This is the list of directories that we will look through
     # If recursive flag is there, we will add directories to this list
