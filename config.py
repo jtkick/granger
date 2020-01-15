@@ -5,7 +5,7 @@
 # This is where all new audiobooks given in the arguments will be stored
 # Structure assumed to be: /path/to/library/author/book/book.ogg
 # Ex: AUDIOBOOK_DIR = "/path/to/library/"
-AUDIOBOOK_DIR = "$HOME/Audiobooks/"
+AUDIOBOOK_DIR = "/home/jared/Audiobooks/"
 
 # Delete files after importing
 # If 'True', Auburn will remove original audio files after importing to library

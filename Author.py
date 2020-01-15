@@ -78,7 +78,7 @@ class Author:
         file_extension = os.path.splitext(book.image_location)[1]
 
         # Set new location of image file
-        new_location = os.path.join(book.directory + "folder" + file_extension))
+        new_location = os.path.join(book.directory, "folder" + file_extension)
 
         # Move and rename file to "folder"
         os.rename(book.image_location, new_location)
@@ -101,4 +101,5 @@ class Author:
         author.image_location = os.path.join(directory, "folder" + file_extension)
 
         # Move image to library author directory
-        author.image_location)
+        os.rename(image_location, author.image_location)
+        

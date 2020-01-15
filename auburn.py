@@ -19,8 +19,9 @@ import argparse
 # For comparing titles after Google Books API search
 import sys
 
-import library
-import audiobook
+import Audiobook
+import Author
+import Library
 
 
 import re
@@ -114,7 +115,7 @@ def main():
                 files.extend(os.listdir(audio_file))
         else:
             # Create object that we will be working with
-            book = Audiobook(os.path.join(args.input, audio_file))
+            book = Audiobook.Audiobook(os.path.join(args.input, audio_file))
 
             # Get book information
             if args.verbose:

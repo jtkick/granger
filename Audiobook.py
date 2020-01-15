@@ -1,5 +1,4 @@
 import config
-import auburn
 import mutagen
 import os
 import shutil
@@ -7,6 +6,8 @@ import requests
 import argparse
 import sys
 import re
+
+import auburn
 
 # This is what we are going to use to build our new audiobook file
 class Audiobook:
@@ -90,8 +91,6 @@ class Audiobook:
     def get_info(self):
         # Get filename
         filename = os.path.basename(self.audio_location)
-        if args.verbose:
-            print("Getting info for: " + filename)
 
         # Split filename
         search_term, ext = os.path.splitext(filename)
@@ -136,9 +135,6 @@ class Audiobook:
         info_correct = False
         while not info_correct:
             # Search Google Books API
-            if args.verbose:
-                print("Sending Google Books API request...")
-                print("Search term : " + search_term)
             response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
                                     search_term.replace(' ', '+'))
 
@@ -179,14 +175,14 @@ class Audiobook:
                     for char in config.SPEC_CHARS:
                         response_str = response_str.replace(char, ' ')
                     ratio = auburn.jaccard_similarity(search_term.split(), response_str.split())
-                    if ratio > result[0]:
+                    if ratio > match["ratio"]:
                         match = {"ratio": ratio, "info": item["volumeInfo"]}
 
                     # Add best match of this run to list of matches
-                    matches.append(result)
+                    matches.append(match)
 
             # Sort list according to similarity ratio in descending order
-            matches.sort(key=get_ratio, reverse=true) 
+            matches.sort(key=get_ratio(), reverse=true) 
 
             # Best match should be at the top of the list
             match = matches.pop(0)
@@ -262,7 +258,7 @@ class Audiobook:
                         # Swap matches
                         matches.append(match)
                         match = matches.pop(selection-1)
-                        matches.sort(key=get_ratio, reverse=true) 
+                        matches.sort(key=get_ratio(), reverse=true) 
 
                     elif user_input == 'E' or user_input == 'e':
                         # Do it again with new information

@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+
+import os
+
+import Audiobook
+import Author
+
 class Library:
     base_dir = ""
     authors = {}
@@ -6,7 +13,13 @@ class Library:
         if (os.path.isdir(library_dir)):
             self.base_dir = library_dir
         else:
-            raise NotADirectoryError(library_dir + ": not a valid directory")
+            # If directory does not exist, try and create it
+            try:
+                os.mkdir(library_dir)
+            except OSError:
+                raise NotADirectoryError(library_dir + ": not a valid directory")
+            else:
+                self.base_dir = library_dir
 
     # This function moves the audiobook and cover to pre-specified library location
     def add_book(self, book):
@@ -33,7 +46,7 @@ class Library:
             return
 
         # Otherwise create new author
-        author = Author(base_dir, name)
+        author = Author.Author(base_dir, name)
 
         # Create path for author
         if not os.path.isdir(author.directory):
@@ -44,7 +57,3 @@ class Library:
 
         # Add newly created author to library object
         authors[name] = author
-        
-       
-if __name__ == "__Library__":
-    
