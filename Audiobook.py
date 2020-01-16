@@ -77,7 +77,7 @@ class Audiobook:
 
         audio_file.save()
 
-    # Simply returns last element of a list
+    # Simply returns match ratio
     # Used when sorting the list of matches received from Google Books
     def get_ratio(match):
         return match["ratio"]

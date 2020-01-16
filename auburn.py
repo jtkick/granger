@@ -115,6 +115,7 @@ def main():
                 files.extend(os.listdir(audio_file))
         else:
             # Create object that we will be working with
+            # TODO: THIS PROBABLY WON'T WORK WITH SUB-DIRECTORIES
             book = Audiobook.Audiobook(os.path.join(args.input, audio_file))
 
             # Get book information
