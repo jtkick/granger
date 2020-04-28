@@ -2,6 +2,7 @@
 
 import os
 
+import auburn
 import Audiobook
 import Author
 
@@ -20,33 +21,59 @@ class Library:
                 raise NotADirectoryError(library_dir + ": not a valid directory")
             else:
                 self.base_dir = library_dir
+                
+    # Group similar files for import
+    # Take a list of file names and create a list of Audiobook objects
+    def group_files(self, filenames):
+        # Create list of lists of similar filenames
+        grouped_files = [[filenames[0]]]
+        filenames.pop(0)
+        for name in filenames:
+            used = False
+            for book in grouped_files:
+                if auburn.jaccard_similarity(name, book[0]) > 0.9:
+                    # Add part name to book
+                    book.append(name)
+                    used = True
+                    break
+            # If filename doesn't match any other books, create a new one
+            if not used:
+                grouped_files.append([name])
+                
+        # Group similar filenames into Audiobook
+        books = []
+        for book in grouped_files:
+            audiobook = Audiobook.Audiobook()
+            for name in book:
+                audiobook.add_file(name)
+            books.append(audiobook)
+            
+        return books
 
-    # This function moves the audiobook and cover to pre-specified library location
-    def add_book(self, book):
+
+    # This function moves the audiobook and cover to pre-specified library
+    # location
+    def add_book(self, book, delete):
         # Get cover image
-        if args.verbose:
-            print("Downloading book cover...")
         book.get_cover()
 
         # Write tags to audio file
-        if args.verbose:
-            print("Writing audio file tags...")
         book.write_tags()
 
         # Create author if it doesn't exist
-        add_author(book.author)
+        self.add_author(book.author)
     
         # Add book to author
-        authors[book.author].add_book(book)
+        self.authors[book.author].add_book(book, delete)
 
 
     def add_author(self, name):
         # If author already exists, just return
-        if name in authors:
+        if name in self.authors:
             return
 
         # Otherwise create new author
-        author = Author.Author(base_dir, name)
+        author = Author.Author(self.base_dir, name)
 
         # Create path for author
         if not os.path.isdir(author.directory):
@@ -56,4 +83,4 @@ class Library:
             author.get_cover()
 
         # Add newly created author to library object
-        authors[name] = author
+        self.authors[name] = author
