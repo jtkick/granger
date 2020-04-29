@@ -27,7 +27,6 @@ __maintainer__ = "Jared Kick"
 __email__ = "jaredkick@gmail.com"
 __status__ = "Prototype"
 
-PART_FINDER_REGEX_STRING = "(?:[Pp][AaRrTtSs]{0,7}[^a-zA-Z0-9]{0,5}(\d+)(?:[^0-9-thr\v]{0,5}(\d+)|\s+[\Dthru-]{0,5}\s+(\d+))?|[^a-zA-z]+(\d+)[^0-9-thr\v]{1,5}(\d+)|\s+[Cc][HhAaPpTtEeRrSs]{0,8}[^a-zA-Z0-9]*(\d+)(?:[^0-9]{0,5}(\d+))?(?:\s+[Pp][AaRrTtSs]{0,6}[^a-zA-Z0-9]{0,5}(\d+)(?:[\D\-through\v]{0,5}(\d+)\s)?)?)"
 
 # TODO: ADD DATABASE FUNCTIONALITY?
 
@@ -62,7 +61,8 @@ fetch_stop_flag = False
 
 def stop_fetch_thread():
     # Flag to manually stop 'fetch' thread abruptly
-    global fetch_stop_flag = True
+    global fetch_stop_flag
+    fetch_stop_flag = True
 
 # Thread that fetches book info before being presented to the user
 def fetch_thread(name, audiobooks):
@@ -487,27 +487,28 @@ class Audiobook:
         # Write each part of file individually
         for track, audio_file in enumerate(self.audio_files, 1):
             # Open file for writing
-            tag = mutagen.File(audio_file.file_abs_path)
+            audio = mutagen.File(audio_file.file_abs_path)
 
             # Write tags
             if audio_file.title:
-                tag["TITLE"] = audio_file.title
+                audio["TITLE"] = mutagen.id3.TextFrame(encoding=3, text=audio_file.title)
             if self.title:
-                tag["ALBUM"] = self.title
+                audio["ALBUM"] = mutagen.id3.TextFrame(encoding=3, text=self.title)
             if self.author:
-                tag["ARTIST"] = self.author
+                audio["ARTIST"] = mutagen.id3.TextFrame(encoding=3, text=self.author)
             if self.publisher:
-                tag["PRODUCER"] = self.publisher
+                audio["PRODUCER"] = mutagen.id3.TextFrame(encoding=3, text=self.publisher)
             if self.year:
-                tag["DATE"] = self.year
+                audio["DATE"] = mutagen.id3.TextFrame(encoding=3, text=self.year)
             if self.description:
-                tag["DESCRIPTION"] = self.description
+                audio["DECCRIPTION"] = mutagen.id3.TextFrame(encoding=3, text=self.description)
             if self.genre:
-                tag["GENRE"] = self.genre
-            tag["TRACKNUMBER"] = str(track)
+                audio["GENRE"] = mutagen.id3.TextFrame(encoding=3, text=self.genre)
+                
+            audio["TRACKNUMBER"] = mutagen.id3.TextFrame(encoding=3, text=str(track))
         
             # Save changes to file
-            tag.save()
+            audio.save()
 
 
     # Get a cover image for the audiobook
@@ -757,6 +758,8 @@ class Audio_File:
     chapters = []
     # List of all low-level parts contained in this audio file
     low_parts = []
+    
+    PART_FINDER_REGEX_STRING = "(?:[Pp][AaRrTtSs]{0,7}[^a-zA-Z0-9]{0,5}(\d+)(?:[^0-9-thr\v]{0,5}(\d+)|\s+[\Dthru-]{0,5}\s+(\d+))?|[^a-zA-z]+(\d+)[^0-9-thr\v]{1,5}(\d+)|\s+[Cc][HhAaPpTtEeRrSs]{0,8}[^a-zA-Z0-9]*(\d+)(?:[^0-9]{0,5}(\d+))?(?:\s+[Pp][AaRrTtSs]{0,6}[^a-zA-Z0-9]{0,5}(\d+)(?:[\D\-through\v]{0,5}(\d+)\s)?)?|(\d)\s*(?:\(.*\))?\s*$)"
 
     def __init__(self):
         self.file_abs_path = ""
@@ -814,8 +817,13 @@ class Audio_File:
         
     # Uses the file_abs_path to get parts and chapters for organizing
     def get_parts(self):
+        # Remove extension
+        filename = os.path.splitext(self.file_abs_path)[0]
+        
         # Parse file_abs_path for matches
-        matches = re.finditer(PART_FINDER_REGEX_STRING, self.file_abs_path, re.MULTILINE)
+        matches = re.finditer(self.PART_FINDER_REGEX_STRING, filename, re.MULTILINE)
+        
+        print(filename)
     
         # Initialize variables
         high_part_num = 0
@@ -827,6 +835,9 @@ class Audio_File:
         num_low_parts = 0
         # Get values from regex matches
         for match in matches:
+            # Group 10: Higher part number
+            if match.group(10) is not None:
+                high_part_num = match.group(10)
             # Group 4: Higher part number
             if match.group(4) is not None:
                 high_part_num = match.group(4)
