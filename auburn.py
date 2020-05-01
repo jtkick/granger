@@ -16,6 +16,7 @@ import threading
 import queue
 import mutagen
 from mutagen.easyid3 import EasyID3
+from mutagen.mp4 import MP4, MP4Cover
 import re
 
 __author__ = "Jared Kick"
@@ -27,6 +28,8 @@ __maintainer__ = "Jared Kick"
 __email__ = "jaredkick@gmail.com"
 __status__ = "Prototype"
 
+
+FORMATS = [".ogg", ".flac", ".mp3", ".opus", ".m4a", ".mp4"]
 
 # TODO: ADD DATABASE FUNCTIONALITY?
 
@@ -109,6 +112,9 @@ def stop_write_thread():
     select_done = True
         
 def write_thread(name, library, delete):
+    # Prep downlaod directory
+    reset_download_dir()
+    
     # Loop through audiobooks while previous thread (select) is not done
     while not select_done or not select_to_write_queue.empty():
         # Get audiobook from queue, blocking if queue is empty
@@ -119,7 +125,29 @@ def write_thread(name, library, delete):
         # If 'None' message received, that means there're no more audiobooks
         else:
             break
+            
+    # Clean downlaod directory
+    reset_download_dir()
 
+
+def reset_download_dir():
+    download_dir = "/tmp/auburn/"
+    
+    # Ensure directory exists
+    if not os.path.isdir(download_dir):
+        os.mkdir(download_dir)
+        
+    # Empty directory
+    for filename in os.listdir(download_dir):
+        file_path = os.path.join(download_dir, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+        
 
 # Takes a search term and returns path to resulting image
 # google_images_download is not currently working
@@ -184,7 +212,7 @@ def main():
             for name in files:
                 # Make sure extension is valid
                 ext = os.path.splitext(name)[-1]
-                if ext in config.FORMATS:
+                if ext in FORMATS:
                     files_to_import.append(os.path.join(root, name))
     # Otherwise, list all files in current directory
     else:
@@ -192,7 +220,7 @@ def main():
             if os.path.isfile(name):
                 # Make sure extension is valid
                 ext = os.path.splitext(name)[-1]
-                if ext in config.FORMATS:
+                if ext in FORMATS:
                     files_to_import.append(os.path.join(directory, name))
     
     # Group similar files into separate audiobooks
@@ -486,27 +514,71 @@ class Audiobook:
     def write_tags(self):
         # Write each part of file individually
         for track, audio_file in enumerate(self.audio_files, 1):
-            # Open file for writing
-            audio = mutagen.File(audio_file.file_abs_path)
-
-            # Write tags
-            if audio_file.title:
-                audio["TITLE"] = mutagen.id3.TextFrame(encoding=3, text=audio_file.title)
-            if self.title:
-                audio["ALBUM"] = mutagen.id3.TextFrame(encoding=3, text=self.title)
-            if self.author:
-                audio["ARTIST"] = mutagen.id3.TextFrame(encoding=3, text=self.author)
-            if self.publisher:
-                audio["PRODUCER"] = mutagen.id3.TextFrame(encoding=3, text=self.publisher)
-            if self.year:
-                audio["DATE"] = mutagen.id3.TextFrame(encoding=3, text=self.year)
-            if self.description:
-                audio["DECCRIPTION"] = mutagen.id3.TextFrame(encoding=3, text=self.description)
-            if self.genre:
-                audio["GENRE"] = mutagen.id3.TextFrame(encoding=3, text=self.genre)
-                
-            audio["TRACKNUMBER"] = mutagen.id3.TextFrame(encoding=3, text=str(track))
+            # Get file extension
+            ext = os.path.splitext(audio_file.file_abs_path)[-1]
         
+            # Open audio file
+            audio = mutagen.File(audio_file.file_abs_path)
+        
+            # TODO: CLEAR ALL TAGS BEFORE WRITING
+        
+            # TODO: GET .WAV FILES WORKING
+        
+            # Handle different filetypes separately
+            if ext in [".mp3"]:
+                # Open audio file
+                try:
+                    audio = EasyID3(audio_file.file_abs_path)
+                except:
+                    audio = mutagen.File(audio_file.file_abs_path, easy=True)
+                    audio.add_tags()
+                
+                # Write tags
+                if audio_file.title:
+                    audio["title"] = audio_file.title
+                if self.title:
+                    audio["album"] = self.title
+                if self.author:
+                    audio["artist"] = self.author
+                if self.year:
+                    audio["date"] = self.year
+                if self.genre:
+                    audio["genre"] = self.genre
+                
+                audio["tracknumber"] = str(track)
+                
+            elif ext in [".mp4", ".m4a"]:
+                # Open audio file
+                audio = MP4(audio_file.file_abs_path)
+                
+                # Write tags
+                if audio_file.title:
+                    audio["\xa9nam"] = audio_file.title
+                if self.author:
+                    audio["\xa9ART"] = self.author
+                if self.title:
+                    audio["\xa9alb"] = self.title
+                
+            # Handle file types separately
+            else:
+                # Write tags
+                if audio_file.title:
+                    audio["title"] = audio_file.title
+                if self.title:
+                    audio["album"] = self.title
+                if self.author:
+                    audio["artist"] = self.author
+                if self.publisher:
+                    audio["producer"] = self.publisher
+                if self.year:
+                    audio["date"] = self.year
+                if self.description:
+                    audio["description"] = self.description
+                if self.genre:
+                    audio["genre"] = self.genre
+
+                audio["tracknumber"] = str(track)
+                
             # Save changes to file
             audio.save()
 
@@ -822,8 +894,6 @@ class Audio_File:
         
         # Parse file_abs_path for matches
         matches = re.finditer(self.PART_FINDER_REGEX_STRING, filename, re.MULTILINE)
-        
-        print(filename)
     
         # Initialize variables
         high_part_num = 0

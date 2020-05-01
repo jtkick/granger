@@ -37,13 +37,6 @@ PROMPT_LEVEL = 2
 # 'bitrate': Overwrite old file if new one has a higher bitrate
 OVERWRITE = "bitrate"
 
-# Acceptable file extensions
-# This is a list of the files that are considered acceptable audio files that
-# will be processed as audiobooks. Any extension not in this list will be
-# ignored when importing. Bear in mind there is no guarantee that mutagen
-# will be able to handle any audio formats other than what is listed.
-FORMATS = [".ogg", ".flac", ".mp3", ".opus", ".m4a"]
-
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
 WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full",
