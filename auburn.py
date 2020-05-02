@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-# A simple script that takes audiobook files, renames them, and tags them properly
-
 # Config file
 import config as config
 
@@ -34,7 +32,7 @@ FORMATS = [".ogg", ".flac", ".mp3", ".opus", ".m4a", ".mp4"]
 # TODO: ADD DATABASE FUNCTIONALITY?
 
 parser = argparse.ArgumentParser(description="Import audiobooks in directory or file.")
-parser.add_argument("input")
+parser.add_argument("input", nargs='*')
 
 # Flag to delete original audio file
 parser.add_argument("-d", "--delete", help="Delete original audio file after importing.", action="store_true")
@@ -206,22 +204,29 @@ def main():
     
     # Get all files to import
     files_to_import = []
-    if config.RECURSE or args.recursive:
-        # Grab all files recursively
-        for (root, directories, files) in os.walk(args.input, topdown=False):
-            for name in files:
-                # Make sure extension is valid
-                ext = os.path.splitext(name)[-1]
-                if ext in FORMATS:
-                    files_to_import.append(os.path.join(root, name))
-    # Otherwise, list all files in current directory
-    else:
-        for name in os.listdir(args.input):
-            if os.path.isfile(name):
-                # Make sure extension is valid
-                ext = os.path.splitext(name)[-1]
-                if ext in FORMATS:
-                    files_to_import.append(os.path.join(directory, name))
+    for file_or_dir in args.input:
+        if os.path.isfile(file_or_dir):
+            files_to_import.append(file_or_dir)
+        elif os.path.isdir(file_or_dir):
+            if config.RECURSE or args.recursive:
+                # Grab all files recursively
+                for (root, directories, files) in os.walk(args.input, topdown=False):
+                    for name in files:
+                        # Make sure extension is valid
+                        ext = os.path.splitext(name)[-1]
+                        if ext in FORMATS:
+                            files_to_import.append(os.path.join(root, name))
+            # Otherwise, list all files in current directory
+            else:
+                for name in os.listdir(args.input):
+                    if os.path.isfile(name):
+                        # Make sure extension is valid
+                        ext = os.path.splitext(name)[-1]
+                        if ext in FORMATS:
+                            files_to_import.append(os.path.join(directory, name))
+        else:
+            print("What have you brought on this cursed land?")
+            sys.exit()
     
     # Group similar files into separate audiobooks
     if files_to_import:
