@@ -47,6 +47,9 @@ parser.add_argument("-v", "--verbose", help="Increase output verbosity.", action
 # Flag to not move or change files
 parser.add_argument("-u", "--dry-run", help="Do not move or edit files.", action="store_true")
 
+# Flag to run in single-thread mode
+parser.add_argument("-s", "--single-thread", help="Run in single thread mode.", action="store_true")
+
 # Parse all arguments
 args = parser.parse_args()
 
@@ -244,35 +247,49 @@ def main():
     else:
         return
 
-    # Create threads
-    fetch_info_thread = threading.Thread(target=fetch_thread,
-                                         args=("fetch_info_thread",
-                                               audiobooks))
-    select_info_thread = threading.Thread(target=select_thread,
-                                          args=("select_info_thread",
-                                                args.dry_run))
-    write_book_thread = threading.Thread(target=write_thread,
-                                         args=("write_book_thread",
-                                               library,
-                                               config.DELETE or args.delete))
-                                     
-    # Start the threads
-    fetch_info_thread.start()
-    select_info_thread.start()
-    write_book_thread.start()
-    
-    # Wait for user to finish selecting data, or to abort
-    select_info_thread.join()
-    
-    # If select_info thread exits (user aborts) close the fetch thread and
-    # wait for write thread to finish
-    if fetch_info_thread.is_alive():
-        stop_fetch_thread()
-    
-    stop_write_thread()
+    if args.single_thread:
+        # Do everything one-by-one
+        for audiobook in audiobooks:
+            # Fetch preliminary info
+            audiobook.get_info()
 
-    # Wait for write thread to finish
-    write_book_thread.join()
+            # Prompt user to select info
+            audiobook.select_info()
+
+            # Add book to library
+            if audiobook.is_valid and not args.dry_run:
+                library.add_book(audiobook, config.DELETE or args.delete)
+
+    else:
+        # Create threads
+        fetch_info_thread = threading.Thread(target=fetch_thread,
+                                             args=("fetch_info_thread",
+                                                   audiobooks))
+        select_info_thread = threading.Thread(target=select_thread,
+                                              args=("select_info_thread",
+                                                    args.dry_run))
+        write_book_thread = threading.Thread(target=write_thread,
+                                             args=("write_book_thread",
+                                                   library,
+                                                   config.DELETE or args.delete))
+                                     
+        # Start the threads
+        fetch_info_thread.start()
+        select_info_thread.start()
+        write_book_thread.start()
+    
+        # Wait for user to finish selecting data, or to abort
+        select_info_thread.join()
+    
+        # If select_info thread exits (user aborts) close the fetch thread and
+        # wait for write thread to finish
+        if fetch_info_thread.is_alive():
+            stop_fetch_thread()
+    
+        stop_write_thread()
+
+        # Wait for write thread to finish
+        write_book_thread.join()
 
 
 class Library:
