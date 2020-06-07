@@ -319,7 +319,8 @@ class Library:
                     temp_name = temp_name.replace(word, '')
                     temp_book = temp_book.replace(word, '')
 
-                if jaccard_similarity(temp_name, temp_book) > 0.95:
+#                if jaccard_similarity(temp_name, temp_book) > 0.95:
+                if temp_name == temp_book:
                     # Add part name to book
                     book.append(name)
                     used = True
