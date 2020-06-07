@@ -16,6 +16,7 @@ import mutagen
 from mutagen.easyid3 import EasyID3
 from mutagen.mp4 import MP4, MP4Cover
 import re
+import signal
 
 __author__ = "Jared Kick"
 __copyright__ = "Copyright 2018, Jared Kick, All rights reserved."
@@ -190,7 +191,16 @@ class colors:
     RESET =     '\033[0;0m'
 
 
+# Close program gracefully on SIGTERM
+def terminate(signal, frame):
+    print(colors.RESET + "Received sigterm signal, exiting...")
+    stop_fetch_thread()
+    stop_select_thread()
+    stop_write_thread()
+
 def main():
+    # Setup SIGTERM handling
+    signal.signal(signal.SIGTERM, terminate)
 
     # TODO: CHECK CONFIG AND ARGUMENTS
     
@@ -210,7 +220,7 @@ def main():
         elif os.path.isdir(file_or_dir):
             if config.RECURSE or args.recursive:
                 # Grab all files recursively
-                for (root, directories, files) in os.walk(args.input, topdown=False):
+                for (root, directories, files) in os.walk(file_or_dir, topdown=False):
                     for name in files:
                         # Make sure extension is valid
                         ext = os.path.splitext(name)[-1]
@@ -259,13 +269,8 @@ def main():
     if fetch_info_thread.is_alive():
         stop_fetch_thread()
     
-    # Make sure write thread is stopping
     stop_write_thread()
 
-    # Let user know that data is still being processed
-    if write_book_thread.is_alive():
-        print("Copying files. Do not exit...")
-        
     # Wait for write thread to finish
     write_book_thread.join()
 
@@ -295,7 +300,26 @@ class Library:
         for name in filenames:
             used = False
             for book in grouped_files:
-                if jaccard_similarity(name, book[0]) > 0.9:
+                
+                # Cleanse both names
+                temp_name = name
+                temp_book = book[0]
+
+                # Use only lower case
+                temp_name = temp_name.lower()
+                temp_book = temp_book.lower()
+
+                # Remove all non-alpha characters
+                temp_name = re.sub(r"[^a-z]+", "", temp_name)
+                temp_book = re.sub(r"[^a-z]+", "", temp_book)
+
+                # Remove chapter and part identifiers
+                identifiers = [ "part", "pt", "prt", "ch", "chap", "chapt", "chapter", "cpt", "chpt"]
+                for word in identifiers:
+                    temp_name = temp_name.replace(word, '')
+                    temp_book = temp_book.replace(word, '')
+
+                if jaccard_similarity(temp_name, temp_book) > 0.95:
                     # Add part name to book
                     book.append(name)
                     used = True
@@ -564,7 +588,6 @@ class Audiobook:
                 if self.title:
                     audio["\xa9alb"] = self.title
                 
-            # Handle file types separately
             else:
                 # Write tags
                 if audio_file.title:
@@ -595,12 +618,20 @@ class Audiobook:
 
     # Search Google Books API for information about book based on file name
     def get_info(self, search_term=None):
+        # Get rid of old matches
+        self.matches = []
+
         # If search_term is not specified in parameters, get info from filename
         if search_term is None:
             # Gets similarity between all filenames in Audiobook to use as search term
             search_term = os.path.splitext(os.path.basename(self.audio_files[0].file_abs_path))[0]
 
             search_term = search_term.lower()
+
+            # Find and remove website names
+            website_domains = [ ".com", ".net", ".org", ".io", ".cc" ]
+            for domain in website_domains:
+                search_term = re.sub("[^a-z0-9][a-z0-9]*\\" + domain, "", search_term)
 
             # Set reminder if file is an excerpt
             if "excerpt" in search_term:
@@ -683,55 +714,66 @@ class Audiobook:
         info_correct = False
         
         # Get match candidate from top of sorted list
-        match = self.matches.pop(0)
+        match = None
+        if len(self.matches) > 0:
+            match = self.matches.pop(0)
         
         # Keep going until user or Auburn decides match is good    
         while not info_correct:
-            # Successful search
-            if match["ratio"] >= 0.5:
-                # Skip user prompt if prompt level is 'never' or 'medium'
-                if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
-                    info_correct = True
-                # Notify user how close of a match it was
-                print(colors.OKGREEN + "Similarity: Good " +
-                      colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
-            # Not quite sure
-            if match["ratio"] < 0.5 and match["ratio"] >= 0.25:
-                # Skip user prompt if prompt level is 'never'
-                if config.PROMPT_LEVEL == 0:
-                    info_correct = True
-                # Notify user how close of a match it was
-                print(colors.WARNING + "Similarity: Moderate " +
-                      colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
-            # Bad match
-            if match["ratio"] < 0.25:
-                # Skip user prompt if prompt level is 'never' and throw out file
-                if config.PROMPT_LEVEL == 0:
-                    info_correct = True
-                    self.is_valid = False
-                    return
-                # Notify user how close of a match it was
-                print(colors.FAIL + "Similarity: Bad " +
-                      colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+            if match:
+                # Successful search
+                if match["ratio"] >= 0.5:
+                    # Skip user prompt if prompt level is 'never' or 'medium'
+                    if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
+                        info_correct = True
+                    # Notify user how close of a match it was
+                    print(colors.OKGREEN + "Similarity: Good " +
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+                # Not quite sure
+                if match["ratio"] < 0.5 and match["ratio"] >= 0.25:
+                    # Skip user prompt if prompt level is 'never'
+                    if config.PROMPT_LEVEL == 0:
+                        info_correct = True
+                    # Notify user how close of a match it was
+                    print(colors.WARNING + "Similarity: Moderate " +
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+                # Bad match
+                if match["ratio"] < 0.25:
+                    # Skip user prompt if prompt level is 'never' and throw out file
+                    if config.PROMPT_LEVEL == 0:
+                        info_correct = True
+                        self.is_valid = False
+                        return
+                    # Notify user how close of a match it was
+                    print(colors.FAIL + "Similarity: Bad " +
+                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
 
-            # Display what the program found
-            if "title" in match["info"]:
-                print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["info"]["title"])
+                # Display what the program found
+                if "title" in match["info"]:
+                    print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["info"]["title"])
                 
-                # Set title in audio files for later
-                for audio_file in self.audio_files:
-                    audio_file.set_title(match["info"]["title"])
+                    # Set title in audio files for later
+                    for audio_file in self.audio_files:
+                        audio_file.set_title(match["info"]["title"])
                     
-            if "subtitle" in match["info"]:
-                print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["info"]["subtitle"])
-            if "authors" in match["info"]:
-                print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["info"]["authors"][0])
+                if "subtitle" in match["info"]:
+                    print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["info"]["subtitle"])
+                if "authors" in match["info"]:
+                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["info"]["authors"][0])
+                else:
+                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + "Unknown Author")
+            # Otherwise, no matches have been found
             else:
-                print(colors.OKBLUE + "Author:   " + colors.OKGREEN + "Unknown Author")
+                print(colors.FAIL + "No matches found!" + colors.RESET + " ")
+                print(colors.OKBLUE + "Title:")
+                print(colors.OKBLUE + "Author:")
+            
+            # Print filename renames
             print(colors.OKBLUE + "Filenames: ")
             for audio_file in self.audio_files:
                 print("\t" + colors.OKGREEN + str(audio_file))
             print()
+
 
             # Prompt user if necessary
             user_input = None
@@ -750,36 +792,52 @@ class Audiobook:
 
                 elif user_input == 'M' or user_input == 'm':
                     print()
-                    i = 1
-                    for item in self.matches:
-                        msg = colors.WARNING + str(i) + " - {:.0%}".format(item["ratio"])
-                        if "title" in item["info"]:
-                            msg += " - " + item["info"]["title"]
-                        if "subtitle" in item["info"]:
-                            msg += ": " + item["info"]["subtitle"]
-                        if "authors" in item["info"]:
-                            msg += " - " + item["info"]["authors"][0]
-                        print(msg)
-                        i += 1
+                    if len(self.matches) < 1:
+                        print(colors.FAIL + "No more matches!" + colors.RESET + " \n")
+                    else:
+                        i = 1
+                        for item in self.matches:
+                            msg = colors.WARNING + str(i) + " - {:.0%}".format(item["ratio"])
+                            if "title" in item["info"]:
+                                msg += " - " + item["info"]["title"]
+                            if "subtitle" in item["info"]:
+                                msg += ": " + item["info"]["subtitle"]
+                            if "authors" in item["info"]:
+                                msg += " - " + item["info"]["authors"][0]
+                            print(msg)
+                            i += 1
 
-                    selection = -1
-                    while (selection <= 0 or selection > len(self.matches)):
-                        selection = int(input("\nEnter selection: "))
+                        selection = -1
+                        while (selection <= 0 or selection > len(self.matches)):
+                            try:
+                                selection = int(input(colors.WARNING + "\nEnter selection:" + colors.RESET + " "))
+                            except:
+                                selection = -1
+
+                            if selection < 1 or selection > len(self.matches):
+                                print(colors.FAIL + "Enter number between 1 and " + str(len(self.matches)) + ".")
                             
-                    # Swap matches
-                    self.matches.append(match)
-                    match = self.matches.pop(selection-1)
-                    self.matches = sorted(self.matches, key = lambda i: i["ratio"], reverse=True) 
+                        # Swap matches
+                        self.matches.append(match)
+                        match = self.matches.pop(selection-1)
+                        self.matches = sorted(self.matches, key = lambda i: i["ratio"], reverse=True) 
 
                 elif user_input == 'E' or user_input == 'e':
                     # Do it again with new information
-                    search_term = input("Title: ")
-                    search_term += " " + input("Author: ")
+                    print()
+                    search_term = input(colors.WARNING + "Title:" + colors.RESET + " ")
+                    search_term += " " + input(colors.WARNING + "Author:" + colors.RESET + " ")
+                    print()
+
                     search_term = search_term.lower()
+                    
                     # Get new matches
                     self.get_info(search_term)
+                    
                     # Update match
-                    match = self.matches.pop(0)
+                    match = None
+                    if len(self.matches) > 0:
+                        match = self.matches.pop(0)
 
                 elif user_input == 'S' or user_input == 's':
                     # Drop this file and move on
@@ -791,35 +849,45 @@ class Audiobook:
                     sys.exit()
 
         # Write match info to Audiobook object
-        if "title" in match["info"]:
-            self.title = match["info"]["title"]
-        if "subtitle" in match["info"]:
-            self.subtitle = match["info"]["subtitle"]
-        if "authors" in match["info"]:
-            self.author = match["info"]["authors"][0]
+        if match:
+            if "title" in match["info"]:
+                self.title = match["info"]["title"]
+            if "subtitle" in match["info"]:
+                self.subtitle = match["info"]["subtitle"]
+            if "authors" in match["info"]:
+                self.author = match["info"]["authors"][0]
+            else:
+                self.author = "Unknown Author"
+            if "publisher" in match["info"]:
+                self.publisher = match["info"]["publisher"]
+            if "categories" in match["info"]:
+                self.genre = match["info"]["categories"][0]
+            if "publishedDate" in match["info"]:
+                # Find four digit number
+                matches = re.finditer(r"(?<!\d)\d{4}(?!\d)", match["info"]["publishedDate"])
+                for date_match in matches:
+                    if date_match.group(0):
+                        self.year = date_match.group(0)
+            if "description" in match["info"]:
+                self.description = match["info"]["description"]
+            if "categories" in match["info"]:
+                self.genre = match["info"]["categories"][0]
         else:
+            self.title = ""
+            self.subtitle = ""
             self.author = "Unknown Author"
-        if "publisher" in match["info"]:
-            self.publisher = match["info"]["publisher"]
-        if "categories" in match["info"]:
-            self.genre = match["info"]["categories"][0]
-        if "publishedDate" in match["info"]:
-            # Find four digit number
-            matches = re.finditer(r"(?<!\d)\d{4}(?!\d)", match["info"]["publishedDate"])
-            for date_match in matches:
-                if date_match.group(0):
-                    self.year = date_match.group(0)
-        if "description" in match["info"]:
-            self.description = match["info"]["description"]
-        if "categories" in match["info"]:
-            self.genre = match["info"]["categories"][0]
+            self.publisher = ""
+            self.genre = ""
+            self.description = ""
+            self.genre = ""
             
     
     # Organize audio_files by high-level part, then chapter, then low-level part
     def organize_files(self):
         # Get parts and chapters
-        for audio_file in self.audio_files:
-            audio_file.get_parts()
+        if len(self.audio_files) > 1:
+            for audio_file in self.audio_files:
+                audio_file.get_parts()
         
         # Sort files in audiobook
         self.audio_files.sort()
@@ -846,6 +914,7 @@ class Audio_File:
 
     def __init__(self, location):
         self.file_abs_path = location
+        self.title = os.path.splitext(os.path.basename(self.file_abs_path))[0]
         self.high_parts = []
         self.chapters = []
         self.low_parts = []
@@ -895,7 +964,7 @@ class Audio_File:
     # Uses the file_abs_path to get parts and chapters for organizing
     def get_parts(self):
         # Remove extension
-        filename = os.path.splitext(self.file_abs_path)[0]
+        filename = os.path.splitext(os.path.basename(self.file_abs_path))[0]
         
         # Parse file_abs_path for matches
         matches = re.finditer(self.PART_FINDER_REGEX_STRING, filename, re.MULTILINE)
