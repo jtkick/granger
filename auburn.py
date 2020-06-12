@@ -17,6 +17,7 @@ from mutagen.easyid3 import EasyID3
 from mutagen.mp4 import MP4, MP4Cover
 import re
 import signal
+import logging
 
 __author__ = "Jared Kick"
 __copyright__ = "Copyright 2018, Jared Kick, All rights reserved."
@@ -32,23 +33,15 @@ FORMATS = [".ogg", ".flac", ".mp3", ".opus", ".m4a", ".mp4"]
 
 # TODO: ADD DATABASE FUNCTIONALITY?
 
+# Setup command line arguments
 parser = argparse.ArgumentParser(description="Import audiobooks in directory or file.")
 parser.add_argument("input", nargs='*')
-
-# Flag to delete original audio file
 parser.add_argument("-d", "--delete", help="Delete original audio file after importing.", action="store_true")
-
-# Flag to search recursively through directory
 parser.add_argument("-r", "--recursive", help="Recurse down through given directories.", action="store_true")
-
-# Flag to print status lines
 parser.add_argument("-v", "--verbose", help="Increase output verbosity.", action="store_true")
-
-# Flag to not move or change files
 parser.add_argument("-u", "--dry-run", help="Do not move or edit files.", action="store_true")
-
-# Flag to run in single-thread mode
 parser.add_argument("-s", "--single-thread", help="Run in single thread mode.", action="store_true")
+parser.add_argument("-l", "--log-level", choices=["debug", "info", "warning", "error", "critical"], help="Set the log level to be stored in auburn.log.", default="info")
 
 # Parse all arguments
 args = parser.parse_args()
@@ -132,78 +125,26 @@ def write_thread(name, library, delete):
     reset_download_dir()
 
 
-def reset_download_dir():
-    download_dir = "/tmp/auburn/"
-    
-    # Ensure directory exists
-    if not os.path.isdir(download_dir):
-        os.mkdir(download_dir)
-        
-    # Empty directory
-    for filename in os.listdir(download_dir):
-        file_path = os.path.join(download_dir, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print('Failed to delete %s. Reason: %s' % (file_path, e))
-        
-
-# Takes a search term and returns path to resulting image
-# google_images_download is not currently working
-# Works with fork by Joeclinton1
-# https://github.com/Joeclinton1/google-images-download/tree/patch-1
-def get_image(search_term):
-    # Cleanse search term
-    search_term = search_term.replace(',', '')
-    
-    # Get single square image and store in /tmp
-    response = google_images_download.googleimagesdownload()
-    arguments = {"keywords":search_term,
-                 "limit":1,
-                 "aspect_ratio":"square",
-                 "output_directory":"/tmp/auburn/",
-                 "silent_mode":True}
-    paths = response.download(arguments)
-
-    try:
-        return paths[0][search_term][0]
-    except:
-        return None
-
-
-# Used to find similarity between filename and results from Google Books API
-def jaccard_similarity(list1, list2):
-    s1 = set(list1)
-    s2 = set(list2)
-    return len(s1.intersection(s2)) / len(s1.union(s2))
-    
-    
-# Colors used for terminal output
-class colors:
-    HEADER =    '\033[95m'
-    OKBLUE =    '\033[94m'
-    OKGREEN =   '\033[92m'
-    WARNING =   '\033[93m'
-    FAIL =      '\033[91m'
-    ENDC =      '\033[0m'
-    BOLD =      '\033[1m'
-    UNDERLINE = '\033[4m'
-    RESET =     '\033[0;0m'
-
-
-# Close program gracefully on SIGTERM
-def terminate(signal, frame):
-    print(colors.RESET + "Received sigterm signal, exiting...")
-    stop_fetch_thread()
-    stop_select_thread()
-    stop_write_thread()
-
 def main():
+
     # Setup SIGTERM handling
     signal.signal(signal.SIGTERM, terminate)
+
+    # Setup logger
+    logging.basicConfig(filename='auburn.log', format='[%(asctime)s] %(process)d: %(message)s', level=logging.INFO)
+    if args.log_level == 'debug':
+        logging.getLogger().setLevel(logging.DEBUG)
+    elif args.log_level == 'info':
+        logging.getLogger().setLevel(logging.INFO)
+    elif args.log_level == 'warning':
+        logging.getLogger().setLevel(logging.WARNING)
+    elif args.log_level == 'error':
+        logging.getLogger().setLevel(logging.ERROR)
+    elif args.log_level == 'critical':
+        logging.getLogger().setLevel(logging.CRITICAL)
+    else:
+        print('ERROR: Invalid log level')
+        sys.exit(1)
 
     # TODO: CHECK CONFIG AND ARGUMENTS
     
@@ -248,20 +189,33 @@ def main():
         return
 
     if args.single_thread:
+
+        logging.info('Running in single-thread mode')
+
         # Do everything one-by-one
-        for audiobook in audiobooks:
+        for i, audiobook in enumerate(audiobooks):
+
             # Fetch preliminary info
+            logging.info('Fetching info for book %d of %d', i+1, len(audiobooks))
             audiobook.get_info()
 
             # Prompt user to select info
+            logging.info('Prompting user for correct info')
             audiobook.select_info()
 
             # Add book to library
-            if audiobook.is_valid and not args.dry_run:
-                library.add_book(audiobook, config.DELETE or args.delete)
+            if audiobook.is_valid:
+                if not args.dry_run:
+                    logging.info('Adding book %d of %d to library', i+1, len(audiobooks))
+                    library.add_book(audiobook, config.DELETE or args.delete)
+                else:
+                    logging.info('Dry-run mode, not adding to library')
+            else:
+                logging.info('Book not valid, not adding to library')
 
     else:
         # Create threads
+        logging.info('Starting worker threads')
         fetch_info_thread = threading.Thread(target=fetch_thread,
                                              args=("fetch_info_thread",
                                                    audiobooks))
@@ -279,18 +233,27 @@ def main():
         write_book_thread.start()
     
         # Wait for user to finish selecting data, or to abort
+        logging.info('Waiting for select_info thread to finish')
         select_info_thread.join()
     
         # If select_info thread exits (user aborts) close the fetch thread and
         # wait for write thread to finish
         if fetch_info_thread.is_alive():
+            logging.info('fetch_info thread still alive, killing thread')
             stop_fetch_thread()
-    
+        logging.info('Waiting for fetch_info thread to finish')
+        fetch_info_thread.join()
+
         stop_write_thread()
 
         # Wait for write thread to finish
+        logging.info('Waiting for write_book thread to finish')
         write_book_thread.join()
 
+
+#########################################################
+#                       CLASSES                         #
+#########################################################
 
 class Library:
     base_dir = ""
@@ -331,7 +294,7 @@ class Library:
                 temp_book = re.sub(r"[^a-z]+", "", temp_book)
 
                 # Remove chapter and part identifiers
-                identifiers = [ "part", "pt", "prt", "ch", "chap", "chapt", "chapter", "cpt", "chpt"]
+                identifiers = [ "part", "pt", "prt", "chap", "chapt", "chapter", "cpt", "chpt"]
                 for word in identifiers:
                     temp_name = temp_name.replace(word, '')
                     temp_book = temp_book.replace(word, '')
@@ -353,6 +316,11 @@ class Library:
             for name in book:
                 audiobook.add_file(name)
             books.append(audiobook)
+
+        for book in books:
+            logging.info('Grouped files:')
+            for audio_file in book.audio_files:
+                logging.info('\t%s', os.path.basename(audio_file.file_abs_path))
             
         return books
 
@@ -432,26 +400,35 @@ class Author:
             # Means we will add new book to library
             add = False
             # Move audio file
+            logging.info('Checking for existing file')
             if os.path.isfile(new_location):
+                
+                logging.info('File \'%s\' already exists', os.path.basename(new_location))
+
                 # If the book already exists in the library, do one of the following
                 if config.OVERWRITE == "bitrate":
                     old_file = mutagen.File(new_location)
                     new_file = mutagen.File(audio_file.file_abs_path)
                     # If new file's bitrate is higher, remove the old file
                     if new_file.info.bitrate > old_file.info.bitrate:
+
                         # Remove old file and add new file
+                        logging.info('New file has higher bitrate, adding file')
                         add = True
 
                 elif config.OVERWRITE == "size":
                     # If new file is bigger, remove the old file
                     if os.path.getsize(audio_file.file_abs_path) > os.path.getsize(new_location):
+                        
                         # Remove old file and add new file
+                        logging.info('New file is bigger, adding file')
                         add = True
+
                 elif config.OVERWRITE == "always":
                     # Remove old file and add new file
                     add = True
                 elif config.OVERWRITE != "never":
-                    print("Invalid value for \"OVERWRITE\" in configuration file.")
+                    logging.error("Invalid value for \"OVERWRITE\" in configuration file.")
                     raise ValueError
             # File doesn't already exist, so add it
             else:
@@ -459,6 +436,7 @@ class Author:
             
             if delete and add:
                 # Move file
+                logging.info('Moving file %s', os.path.basename(audio_file.file_abs_path))
                 shutil.move(audio_file.file_abs_path, new_location)
                 
                 # Update file path
@@ -466,6 +444,7 @@ class Author:
                 
             elif not delete and add:
                 # Copy file
+                logging.info('Moving file %s', os.path.basename(audio_file.file_abs_path))
                 shutil.copy2(audio_file.file_abs_path, new_location)
                 
                 # Update file path
@@ -489,10 +468,12 @@ class Author:
         self.books.append(book)
 
         # Sort books by year
+        logging.info('Sorting all books in %s', self.name)
         self.books.sort(key=lambda x: x.year, reverse=True)
 
     def get_cover(self):
         # Get author image
+        logging.info('Getting image for author: %s', self.name)
         image_location = get_image("\"" + self.name + "\" author")
 
         if image_location:
@@ -561,76 +542,84 @@ class Audiobook:
     def write_tags(self):
         # Write each part of file individually
         for track, audio_file in enumerate(self.audio_files, 1):
-            # Get file extension
-            ext = os.path.splitext(audio_file.file_abs_path)[-1]
-        
-            # Open audio file
-            audio = mutagen.File(audio_file.file_abs_path)
-        
-            # TODO: CLEAR ALL TAGS BEFORE WRITING
-        
-            # TODO: GET .WAV FILES WORKING
-        
-            # Handle different filetypes separately
-            if ext in [".mp3"]:
-                # Open audio file
-                try:
-                    audio = EasyID3(audio_file.file_abs_path)
-                except:
-                    audio = mutagen.File(audio_file.file_abs_path, easy=True)
-                    audio.add_tags()
-                
-                # Write tags
-                if audio_file.title:
-                    audio["title"] = audio_file.title
-                if self.title:
-                    audio["album"] = self.title
-                if self.author:
-                    audio["artist"] = self.author
-                if self.year:
-                    audio["date"] = self.year
-                if self.genre:
-                    audio["genre"] = self.genre
-                
-                audio["tracknumber"] = str(track)
-                
-            elif ext in [".mp4", ".m4a"]:
-                # Open audio file
-                audio = MP4(audio_file.file_abs_path)
-                
-                # Write tags
-                if audio_file.title:
-                    audio["\xa9nam"] = audio_file.title
-                if self.author:
-                    audio["\xa9ART"] = self.author
-                if self.title:
-                    audio["\xa9alb"] = self.title
-                
-            else:
-                # Write tags
-                if audio_file.title:
-                    audio["title"] = audio_file.title
-                if self.title:
-                    audio["album"] = self.title
-                if self.author:
-                    audio["artist"] = self.author
-                if self.publisher:
-                    audio["producer"] = self.publisher
-                if self.year:
-                    audio["date"] = self.year
-                if self.description:
-                    audio["description"] = self.description
-                if self.genre:
-                    audio["genre"] = self.genre
 
-                audio["tracknumber"] = str(track)
+            try:
+                # Get file extension
+                ext = os.path.splitext(audio_file.file_abs_path)[-1]
+        
+                # Open audio file
+                #audio = mutagen.File(audio_file.file_abs_path)
+        
+                # TODO: CLEAR ALL TAGS BEFORE WRITING
+        
+                # TODO: GET .WAV FILES WORKING
+        
+                logging.info('Attempting to open file for writing metadata: %s', os.path.basename(audio_file.file_abs_path))
+
+                # Handle different filetypes separately
+                if ext in [".mp3"]:
+                    # Open audio file
+                    try:
+                        audio = EasyID3(audio_file.file_abs_path)
+                    except:
+                        audio = mutagen.File(audio_file.file_abs_path, easy=True)
+                        audio.add_tags()
                 
-            # Save changes to file
-            audio.save()
+                    # Write tags
+                    if audio_file.title:
+                        audio["title"] = audio_file.title
+                    if self.title:
+                        audio["album"] = self.title
+                    if self.author:
+                        audio["artist"] = self.author
+                    if self.year:
+                        audio["date"] = self.year
+                    if self.genre:
+                        audio["genre"] = self.genre
+                
+                    audio["tracknumber"] = str(track)
+                
+                elif ext in [".mp4", ".m4a"]:
+                    # Open audio file
+                    audio = MP4(audio_file.file_abs_path)
+                
+                    # Write tags
+                    if audio_file.title:
+                        audio["\xa9nam"] = audio_file.title
+                    if self.author:
+                        audio["\xa9ART"] = self.author
+                    if self.title:
+                        audio["\xa9alb"] = self.title
+                
+                else:
+                    # Write tags
+                    if audio_file.title:
+                        audio["title"] = audio_file.title
+                    if self.title:
+                        audio["album"] = self.title
+                    if self.author:
+                        audio["artist"] = self.author
+                    if self.publisher:
+                        audio["producer"] = self.publisher
+                    if self.year:
+                        audio["date"] = self.year
+                    if self.description:
+                        audio["description"] = self.description
+                    if self.genre:
+                        audio["genre"] = self.genre
+
+                    audio["tracknumber"] = str(track)
+                
+                # Save changes to file
+                audio.save()
+
+            except:
+                logging.critical('Could not metadata to file. Either corrupt or not an audio file.')
 
 
     # Get a cover image for the audiobook
     def get_cover(self):
+        logging.info('Getting image for book: %s', self.title)
         self.image_location = get_image("\"" + self.title + "\" audiobook")
 
 
@@ -641,9 +630,14 @@ class Audiobook:
 
         # If search_term is not specified in parameters, get info from filename
         if search_term is None:
+
             # Gets similarity between all filenames in Audiobook to use as search term
             search_term = os.path.splitext(os.path.basename(self.audio_files[0].file_abs_path))[0]
 
+            # Remove part and chapter numbers
+            search_term = re.sub(self.audio_files[0].PART_FINDER_REGEX_STRING, '', search_term)
+
+            # Use only lower-case letters for simplicity
             search_term = search_term.lower()
 
             # Find and remove website names
@@ -663,7 +657,9 @@ class Audiobook:
             # Remove special characters
             for char in config.SPEC_CHARS:
                 search_term = search_term.replace(char, ' ')
-                
+
+        logging.info('Fetching info for search term: %s', search_term)
+
         # Search Google Books API
         response = requests.get("https://www.googleapis.com/books/v1/volumes?q=" +
                                 search_term.replace(' ', '+'))
@@ -721,6 +717,8 @@ class Audiobook:
 
                 # Add best match of this run to list of matches
                 self.matches.append(match)
+
+            logging.info('Received %d matches for search term: %s', len(self.matches), search_term)
 
             # Sort list according to similarity ratio in descending order
             self.matches = sorted(self.matches, key = lambda i: i["ratio"], reverse=True)
@@ -805,6 +803,7 @@ class Audiobook:
 
                 if user_input == 'A' or user_input == 'a':
                     # Exit loop and write match information
+                    logging.info('Applying selected info')
                     self.is_valid = True
                     info_correct = True
 
@@ -849,6 +848,8 @@ class Audiobook:
 
                     search_term = search_term.lower()
                     
+                    logging.info('Trying again with search term: %s', search_term)
+
                     # Get new matches
                     self.get_info(search_term)
                     
@@ -858,11 +859,17 @@ class Audiobook:
                         match = self.matches.pop(0)
 
                 elif user_input == 'S' or user_input == 's':
+
+                    logging.info('Skipping book')
+
                     # Drop this file and move on
                     self.is_valid = False
                     return
 
                 elif user_input == 'B' or user_input == 'b':
+
+                    logging.info('User aborted program, exiting thread')
+
                     # Pull the plug
                     sys.exit()
 
@@ -870,6 +877,7 @@ class Audiobook:
         if match:
             if "title" in match["info"]:
                 self.title = match["info"]["title"]
+                logging.info('Writing info to audiobook object: %s', self.title)
             if "subtitle" in match["info"]:
                 self.subtitle = match["info"]["subtitle"]
             if "authors" in match["info"]:
@@ -1057,6 +1065,89 @@ class Audio_File:
             
         if low_part_num:
             self.low_parts = [ low_part_num ]
+
+
+#########################################################
+#                   HELPER FUNCTIONS                    #
+#########################################################
+
+def reset_download_dir():
+    download_dir = "/tmp/auburn/"
+    
+    logging.info('Clearing download directory: %s', download_dir)
+
+    # Ensure directory exists
+    if not os.path.isdir(download_dir):
+        os.mkdir(download_dir)
+        
+    # Empty directory
+    for filename in os.listdir(download_dir):
+        file_path = os.path.join(download_dir, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            logging.error('Failed to delete %s. Reason: %s', file_path, e)
+        
+
+# Takes a search term and returns path to resulting image
+# google_images_download is not currently working
+# Works with fork by Joeclinton1
+# https://github.com/Joeclinton1/google-images-download/tree/patch-1
+def get_image(search_term):
+    # Cleanse search term
+    search_term = search_term.replace(',', '')
+    
+    # Get single square image and store in /tmp
+    response = google_images_download.googleimagesdownload()
+
+    # Set download parameters
+    arguments = {"keywords":search_term,
+                 "limit":1,
+                 "aspect_ratio":"square",
+                 "output_directory":"/tmp/auburn/",
+                 "silent_mode":True}
+    
+    # Download images while redirecting output
+    paths = response.download(arguments)
+
+    try:
+        return paths[0][search_term][0]
+    except:
+        logging.warning('No images downloaded for search term: %s', search_term)
+        return None
+
+
+# Used to find similarity between filename and results from Google Books API
+def jaccard_similarity(list1, list2):
+    s1 = set(list1)
+    s2 = set(list2)
+    return len(s1.intersection(s2)) / len(s1.union(s2))
+    
+    
+# Colors used for terminal output
+class colors:
+    HEADER =    '\033[95m'
+    OKBLUE =    '\033[94m'
+    OKGREEN =   '\033[92m'
+    WARNING =   '\033[93m'
+    FAIL =      '\033[91m'
+    ENDC =      '\033[0m'
+    BOLD =      '\033[1m'
+    UNDERLINE = '\033[4m'
+    RESET =     '\033[0;0m'
+
+
+# Close program gracefully on SIGTERM
+def terminate(signal, frame):
+    logging.info('Received SIGTERM signal, exiting.')
+    print(colors.RESET + "Received SIGTERM signal, exiting...")
+    stop_fetch_thread()
+    stop_select_thread()
+    stop_write_thread()
+
 
 if __name__ == "__main__":
     main()

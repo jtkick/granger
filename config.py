@@ -39,10 +39,9 @@ OVERWRITE = "bitrate"
 
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
-WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", "full",
+WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", " full ",
          "complete", "hd", "pdf", "abridged", "unabridged", "subtitles",
-         ".com ", ".net ", ".org ", "mp3", "mp4", "m4v", "m4a", "m4b", "wav",
-         "wmv", "free", " part ", " pt ", " chap ", "chpt", " ch", "chapter"]
+         "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
 
 # Special characters to remove from filename. '&' is NOT removed as these are
 # sometimes helpful
