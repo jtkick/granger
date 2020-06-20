@@ -6,8 +6,7 @@ import time
 import random
 from PIL import Image
 
-
-sat_distance = int(sys.argv[-1])
+sat_distance = 2
 
 while True:
     #if sat distance is less than 3 units engage capture sequence. Let's hope this works boss.
@@ -24,13 +23,13 @@ while True:
         print("FIRE NET")
         firing = random.randint(1,10)
         while firing != 1:
-            firing = random.randint(1,10)
+            firing = random.randint(1,50)
             print("we missed, relaunching assault")
             time.sleep(.1)
         print("Ladies and gentlemen. We got him.")
         img = Image.open("georgy.jpg")
-        for i in range (0,random.randint(10,25)):
-            img.rotate(int(45*i)).show()
+        for i in range (0,random.randint(10,100)):
+            img.rotate(int(15*i)).show()
             time.sleep(.2)
             # img.close()
 
