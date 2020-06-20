@@ -35,13 +35,13 @@ PROMPT_LEVEL = 2
 # 'never': Always keep pre-existing file
 # 'size': Overwrite old file if new one is bigger
 # 'bitrate': Overwrite old file if new one has a higher bitrate
-OVERWRITE = "bitrate"
+OVERWRITE = "prompt"
 
 # Words to remove that tend to appear in file names but don't describe the book
 # These words (especially "audiobook") tend to screw up Google Books searches
 WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", " full ",
-         "complete", "hd", "pdf", "abridged", "unabridged", "subtitles",
-         "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
+         "complete", "hd", "hq", "high quality", "pdf", "abridged", "unabridged",
+         "subtitles", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
 
 # Special characters to remove from filename. '&' is NOT removed as these are
 # sometimes helpful

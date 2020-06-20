@@ -18,6 +18,7 @@ from mutagen.mp4 import MP4, MP4Cover
 import re
 import signal
 import logging
+import datetime
 
 __author__ = "Jared Kick"
 __copyright__ = "Copyright 2018, Jared Kick, All rights reserved."
@@ -41,6 +42,9 @@ parser.add_argument("-r", "--recursive", help="Recurse down through given direct
 parser.add_argument("-v", "--verbose", help="Increase output verbosity.", action="store_true")
 parser.add_argument("-u", "--dry-run", help="Do not move or edit files.", action="store_true")
 parser.add_argument("-s", "--single-thread", help="Run in single thread mode.", action="store_true")
+parser.add_argument("-j", "--write-json", help="Write metadata to JSON file.", action="store_true")
+parser.add_argument("-i", "--no-images", help="Skip downloading cover images for book and author.", action="store_true")
+parser.add_argument('-e', '--write-description', help='Write book summary to desc.txt file for Booksonic.', action='store_true')
 parser.add_argument("-l", "--log-level", choices=["debug", "info", "warning", "error", "critical"], help="Set the log level to be stored in auburn.log.", default="info")
 
 # Parse all arguments
@@ -82,7 +86,7 @@ def stop_select_thread():
     fetch_to_select_queue.put(None, True, None)
     fetch_done = True
     
-def select_thread(name, dry_run):
+def select_thread(name, library, dry_run):
     # Loop through audiobooks while previous thread (fetch) is not done
     while not fetch_done or not fetch_to_select_queue.empty():
         # Get audiobook from queue, blocking if queue is empty
@@ -91,9 +95,12 @@ def select_thread(name, dry_run):
         if audiobook:
             # Select correct info
             audiobook.select_info()
+            # Handle pre-existing book
+            if audiobook.add_to_library:
+                library.check_existing(audiobook)
             # Push audiobook onto next queue, blocking if queue is full
             # Only add book if it is valid
-            if audiobook.is_valid and not dry_run:
+            if audiobook.add_to_library and not dry_run:
                 select_to_write_queue.put(audiobook, True, None)
         # If 'None' message received, that means there're no more audiobooks
         else:
@@ -146,10 +153,6 @@ def main():
         print('ERROR: Invalid log level')
         sys.exit(1)
 
-    # TODO: CHECK CONFIG AND ARGUMENTS
-    
-    # TODO: HANDLE DIFFERENT TYPES OF METADATA E.G., SCHEMA.ORG, BOOKSONIC, .NFO
-
     library = Library(config.AUDIOBOOK_DIR)
 
     # This is the list of directories that we will look through
@@ -179,7 +182,7 @@ def main():
                         if ext in FORMATS:
                             files_to_import.append(os.path.join(directory, name))
         else:
-            print("What have you brought on this cursed land?")
+            print('What have you brought on this cursed land?')
             sys.exit()
     
     # Group similar files into separate audiobooks
@@ -203,8 +206,12 @@ def main():
             logging.info('Prompting user for correct info')
             audiobook.select_info()
 
+            # Check for existing book
+            if audiobook.add_to_library:
+                library.check_existing(audiobook)
+
             # Add book to library
-            if audiobook.is_valid:
+            if audiobook.add_to_library:
                 if not args.dry_run:
                     logging.info('Adding book %d of %d to library', i+1, len(audiobooks))
                     library.add_book(audiobook, config.DELETE or args.delete)
@@ -221,6 +228,7 @@ def main():
                                                    audiobooks))
         select_info_thread = threading.Thread(target=select_thread,
                                               args=("select_info_thread",
+                                                    library,
                                                     args.dry_run))
         write_book_thread = threading.Thread(target=write_thread,
                                              args=("write_book_thread",
@@ -257,7 +265,7 @@ def main():
 
 class Library:
     base_dir = ""
-    authors = {}
+    authors = []
 
     def __init__(self, library_dir):
         if (os.path.isdir(library_dir)):
@@ -270,6 +278,33 @@ class Library:
                 raise NotADirectoryError(library_dir + ": not a valid directory")
             else:
                 self.base_dir = library_dir
+                
+                
+    # Check if book exists in library and set data members accordingly
+    def check_existing(self, audiobook):
+        # Find author
+        author = self.get_author(audiobook.author)
+        
+        # Check for existing book
+        author.check_existing(audiobook)
+                
+                
+    # Gets string and returns directory of author if they exist in library
+    def get_author(self, author_name):
+        # Cleanse input author name
+        #clean_author_name = re.sub(r'[^a-z]+', '', author_name.lower())
+        
+        # Look for author of same name
+        for author in self.authors:
+            if author.name == author_name:
+                logging.info('Found existing author of name: \'%s\'', author.name)
+                return author
+        
+        # Otherwise create new author
+        author = self.add_author(author_name)
+        
+        return author
+                
                 
     # Group similar files for import
     # Take a list of file names and create a list of Audiobook objects
@@ -299,7 +334,6 @@ class Library:
                     temp_name = temp_name.replace(word, '')
                     temp_book = temp_book.replace(word, '')
 
-#                if jaccard_similarity(temp_name, temp_book) > 0.95:
                 if temp_name == temp_book:
                     # Add part name to book
                     book.append(name)
@@ -329,22 +363,21 @@ class Library:
     # location
     def add_book(self, book, delete):
         # Get cover image
-        book.get_cover()
+        if not args.no_images:
+            book.get_cover()
 
-        # Write tags to audio file
-        book.write_tags()
-
-        # Create author if it doesn't exist
-        self.add_author(book.author)
+        # Get author
+        author = self.get_author(book.author)
     
         # Add book to author
-        self.authors[book.author].add_book(book, delete)
+        author.add_book(book, delete)
 
 
     def add_author(self, name):
         # If author already exists, just return
-        if name in self.authors:
-            return
+        for author in self.authors:
+            if name == author.name:
+                return
 
         # Otherwise create new author
         author = Author(self.base_dir, name)
@@ -354,10 +387,13 @@ class Library:
             os.mkdir(author.directory)
 
             # Get author image
-            author.get_cover()
+            if not args.no_images:
+                author.get_cover()
 
         # Add newly created author to library object
-        self.authors[name] = author
+        self.authors.append(author)
+        
+        return author
         
         
 class Author:
@@ -368,7 +404,7 @@ class Author:
     image_location = None
     # Name of the author
     name = ""
-    # Should contain only 'audiobook' objects in chronological order
+    # Should contain only 'audiobook' objects
     books = []
 
     def __init__(self, base_dir, author_name):
@@ -378,80 +414,62 @@ class Author:
 
     # Add book will update the 'books' list as well as move the audiobook and cover files to
     # the proper directory
-    # This function should only be called by library.add_book() which will do the thinking
-    # and is called in the main function.
+    # This function should only be called by library.add_book()
     def add_book(self, book, delete):
-        # TODO: FIX THE AWFUL LOGIC IN THIS FUNCTION
-    
+        # Directory that book will be moved to
         book.directory = os.path.join(self.directory, book.title)
 
         # Make sure book directory exists
         if not os.path.isdir(book.directory):
             os.mkdir(book.directory)
 
-        # Move/copy/delete audio files
+        # Delete pre-existing book
+        if book.delete_existing:
+            # Get all files in directory
+            files = [f for f in os.listdir(book.directory) if os.path.isfile(os.path.join(book.directory, f))]
+            
+            # Delete every file
+            for f in files:
+                os.remove(os.path.join(book.directory, f))
+        
+        # TODO: REWRITE METADATA FILES IF THEY ALREADY EXIST
+        
+        # Copy over new book
         for audio_file in book.audio_files:
-            # Get original file extension
+            # Get file extension
             ext = os.path.splitext(audio_file.file_abs_path)[-1]
             
-            # Define where the file will go and be named
+            # Create new audio file location
             new_location = os.path.join(book.directory, (audio_file.title + ext))
             
-            # Means we will add new book to library
-            add = False
-            # Move audio file
-            logging.info('Checking for existing file')
-            if os.path.isfile(new_location):
-                
-                logging.info('File \'%s\' already exists', os.path.basename(new_location))
-
-                # If the book already exists in the library, do one of the following
-                if config.OVERWRITE == "bitrate":
-                    old_file = mutagen.File(new_location)
-                    new_file = mutagen.File(audio_file.file_abs_path)
-                    # If new file's bitrate is higher, remove the old file
-                    if new_file.info.bitrate > old_file.info.bitrate:
-
-                        # Remove old file and add new file
-                        logging.info('New file has higher bitrate, adding file')
-                        add = True
-
-                elif config.OVERWRITE == "size":
-                    # If new file is bigger, remove the old file
-                    if os.path.getsize(audio_file.file_abs_path) > os.path.getsize(new_location):
-                        
-                        # Remove old file and add new file
-                        logging.info('New file is bigger, adding file')
-                        add = True
-
-                elif config.OVERWRITE == "always":
-                    # Remove old file and add new file
-                    add = True
-                elif config.OVERWRITE != "never":
-                    logging.error("Invalid value for \"OVERWRITE\" in configuration file.")
-                    raise ValueError
-            # File doesn't already exist, so add it
-            else:
-                add = True
+            # If same filename exists, we still want to keep both
+            num = 1
+            while os.path.isfile(new_location):
+                filename, ext = os.path.splitext(new_location)
+                new_location = filename + " " + str(num) + ext
+                num += 1
             
-            if delete and add:
-                # Move file
-                logging.info('Moving file %s', os.path.basename(audio_file.file_abs_path))
+            # If delete source file
+            if delete:
+                # Move instead of copying
+                logging.info('Moving file: %s', os.path.basename(audio_file.file_abs_path))
+                logging.info('Destination: %s', new_location)
                 shutil.move(audio_file.file_abs_path, new_location)
                 
-                # Update file path
-                audio_file.file_abs_path = new_location
-                
-            elif not delete and add:
+            else:
                 # Copy file
-                logging.info('Moving file %s', os.path.basename(audio_file.file_abs_path))
+                logging.info('Copying file: %s', os.path.basename(audio_file.file_abs_path))
+                logging.info('Destination: %s', new_location)
                 shutil.copy2(audio_file.file_abs_path, new_location)
                 
-                # Update file path
-                audio_file.file_abs_path = new_location
-                
-            else:
-                return
+            # Update file path
+            audio_file.file_abs_path = new_location
+            
+        # Update audiobook object to contain all existing files for writing metadata
+        files = [f for f in os.listdir(book.directory) if os.path.isfile(os.path.join(book.directory, f))]
+        for f in files:
+            # Add_file returns if audiobook already contains file, so try all of them
+            book.add_file(os.path.join(book.directory, f))
 
         # Get image file location
         if book.image_location:
@@ -460,16 +478,103 @@ class Author:
             # Set new location of image file
             new_location = os.path.join(book.directory, "cover" + file_extension)
 
-            # Move and rename file to "folder"
+            # Move and rename file to "cover"
             shutil.move(book.image_location, new_location)
             book.image_location = new_location
 
+        # Write tags to audio file
+        book.write_tags()
+        
+        # Update file stats
+        book.get_stats()
+        
+        # Write json metadata file
+        if args.write_json:
+            book.write_json()
+
+        # Write description file
+        if args.write_description:
+            book.write_description()
+
         # Add book to author
         self.books.append(book)
+        
+        
+    def check_existing(self, book):
+        # Get directory of author if they already exist in the library
+        audiobook_dir = os.path.join(self.directory, book.title)
+        
+        if os.path.isdir(audiobook_dir):
+          
+            # Audiobook already exists in library
+            files = [f for f in os.listdir(audiobook_dir) if os.path.isfile(os.path.join(audiobook_dir, f))]
 
-        # Sort books by year
-        logging.info('Sorting all books in %s', self.name)
-        self.books.sort(key=lambda x: x.year, reverse=True)
+            # Create audiobook object out of existing files
+            existing_book = Audiobook()
+            for f in files:
+                existing_book.add_file(os.path.join(audiobook_dir, f))
+
+            # Get stats
+            existing_book.get_stats()
+                    
+            if config.OVERWRITE == "bitrate":
+                if book.bitrate > existing_book.bitrate:
+                    book.delete_existing = True
+                          
+            elif config.OVERWRITE == "size":
+                if book.size > existing_book.size:
+                    book.delete_existing = True
+                            
+            elif config.OVERWRITE == "always":
+                book.delete_existing = True
+                        
+            elif config.OVERWRITE == "never":
+                book.add_to_library = False
+                       
+            elif config.OVERWRITE == "prompt":
+                # Prompt user
+                print()
+                print(colors.ENDC + 'Book already exists in library.')
+                print(colors.OKGREEN + 'Existing book:')
+                for audio_file in existing_book.audio_files:
+                    print(colors.ENDC + '    ' + os.path.basename(audio_file.file_abs_path))
+                print(colors.OKBLUE + '    Bitrate: ' + colors.ENDC + str(int(existing_book.bitrate/1000)) + ' Kb/s')
+                print(colors.OKBLUE + '    Size:    ' + colors.ENDC + str(int(existing_book.size/1000000)) + ' MB')
+                
+                print(colors.OKBLUE + '    Length:  ' + colors.ENDC + format_length(existing_book.length))
+                print()
+                print(colors.OKGREEN + 'New book:')
+                for audio_file in book.audio_files:
+                    print(colors.ENDC + '    ' + audio_file.title)
+                print(colors.OKBLUE + '    Bitrate: ' + colors.ENDC + str(int(book.bitrate/1000)) + ' Kb/s')
+                print(colors.OKBLUE + '    Size:    ' + colors.ENDC + str(int(book.size/1000000)) + ' MB')
+                print(colors.OKBLUE + '    Length:  ' + colors.ENDC + format_length(book.length))
+                        
+                user_input = None
+                valid_options = ['A', 'a', 'K', 'k', 'M', 'm', 'B', 'b', '']
+                while user_input not in valid_options:
+                    print()
+                    print(colors.WARNING + 'Options: [A]dd new book, [k]eep old book, [m]erge books, a[b]ort')
+                    user_input = input(colors.WARNING + 'Command:' + colors.RESET + ' ')
+                            
+                if user_input in ['A', 'a', '']:
+                    book.delete_existing = True
+                            
+                elif user_input in ['K', 'k']:
+                    book.add_to_library = False
+                            
+                elif user_input in ['M', 'm']:
+                    book.delete_existing = False
+                    
+                elif user_input == 'B' or user_input == 'b':
+                    logging.info('User aborted program, exiting thread')
+                    # Pull the plug
+                    sys.exit()
+                    
+            else:
+                logging.critical("Invalid value for \"OVERWRITE\" in configuration file.")
+                raise ValueError
+
 
     def get_cover(self):
         # Get author image
@@ -489,36 +594,65 @@ class Author:
 
 # This is what we are going to use to build our new audiobook file
 class Audiobook:
-    title = ""
-    subtitle = ""
+
+    # Metadata
+    aggregate_rating = 0.0
     author = ""
-    publisher = ""
-    genre = ""
-    year = None
+    bitrate = 0 # In bits/second 
+    content_rating = ""
+    date_published = None
     description = ""
+    duration = 0.0 # In seconds 
     genre = ""
+    is_abridged = False
     is_excerpt = False
-    is_valid = False
+    isbn = "" # Prefer ISBN 13
+    num_ratings = 0
+    publisher = ""
+    size = 0 # In bytes
+    subtitle = ""
+    title = ""
+
     # Holds list of matches from Google Books API
     matches = []
+
+    # Location of where audiobook will be written
+    directory = ""
+    
+    # Signifies that data in object is good and should be added
+    add_to_library = False
+    
+    # Signifies that any existing audiobook files of the same name and author should be removed
+    delete_existing = False
+    
     # List of Audio_File objects
     audio_files = []
     
     # Location of the book cover image
     image_location = ""
 
+
     def __init__(self):
-        self.title = ""
-        self.subtitle = ""
+        self.aggregate_rating = 0.0
         self.author = ""
-        self.publisher = ""
-        self.genre = ""
-        self.year = None
+        self.bitrate = 0
+        self.content_rating = ""
+        self.date_published = None
+        self.delete_existing = False
         self.description = ""
+        self.duration = 0.0
         self.genre = ""
+        self.is_abridged = False
         self.is_excerpt = False
-        self.is_valid = False
+        self.add_to_library = False
+        self.isbn = ""
+        self.num_ratings = 0
+        self.publisher = ""
+        self.size = 0
+        self.subtitle = ""
+        self.title = ""
         self.matches = []
+        self.directory = ""
         self.audio_files = []
         self.image_location = ""
 
@@ -528,93 +662,23 @@ class Audiobook:
         return ("Title:       " + self.title + "\n" +
                 "Subtitle:    " + self.subtitle + "\n" +
                 "Author:      " + self.author + "\n" +
-                "Publisher:   " + self.publisher + "\n" +
                 "Year:        " + str(self.year) + "\n" +
-                "Description: " + self.description + "\n" +
-                "Image Loc.:  " + self.image_location)
+                "Description: " + self.description)
+
 
     # Add audio file to audiobook object
     def add_file(self, filename):
-        self.audio_files.append(Audio_File(filename))
-
-    # Writes tags to audio file 'self'
-    # Path to the audio file should be passed to the function
-    def write_tags(self):
-        # Write each part of file individually
-        for track, audio_file in enumerate(self.audio_files, 1):
-
-            try:
-                # Get file extension
-                ext = os.path.splitext(audio_file.file_abs_path)[-1]
+        # Get file exension
+        ext = os.path.splitext(filename)[-1]
         
-                # Open audio file
-                #audio = mutagen.File(audio_file.file_abs_path)
+        # Only add if it doesn't already exist
+        for audio_file in self.audio_files:
+            if filename == audio_file.file_abs_path:
+                return
         
-                # TODO: CLEAR ALL TAGS BEFORE WRITING
-        
-                # TODO: GET .WAV FILES WORKING
-        
-                logging.info('Attempting to open file for writing metadata: %s', os.path.basename(audio_file.file_abs_path))
-
-                # Handle different filetypes separately
-                if ext in [".mp3"]:
-                    # Open audio file
-                    try:
-                        audio = EasyID3(audio_file.file_abs_path)
-                    except:
-                        audio = mutagen.File(audio_file.file_abs_path, easy=True)
-                        audio.add_tags()
-                
-                    # Write tags
-                    if audio_file.title:
-                        audio["title"] = audio_file.title
-                    if self.title:
-                        audio["album"] = self.title
-                    if self.author:
-                        audio["artist"] = self.author
-                    if self.year:
-                        audio["date"] = self.year
-                    if self.genre:
-                        audio["genre"] = self.genre
-                
-                    audio["tracknumber"] = str(track)
-                
-                elif ext in [".mp4", ".m4a"]:
-                    # Open audio file
-                    audio = MP4(audio_file.file_abs_path)
-                
-                    # Write tags
-                    if audio_file.title:
-                        audio["\xa9nam"] = audio_file.title
-                    if self.author:
-                        audio["\xa9ART"] = self.author
-                    if self.title:
-                        audio["\xa9alb"] = self.title
-                
-                else:
-                    # Write tags
-                    if audio_file.title:
-                        audio["title"] = audio_file.title
-                    if self.title:
-                        audio["album"] = self.title
-                    if self.author:
-                        audio["artist"] = self.author
-                    if self.publisher:
-                        audio["producer"] = self.publisher
-                    if self.year:
-                        audio["date"] = self.year
-                    if self.description:
-                        audio["description"] = self.description
-                    if self.genre:
-                        audio["genre"] = self.genre
-
-                    audio["tracknumber"] = str(track)
-                
-                # Save changes to file
-                audio.save()
-
-            except:
-                logging.critical('Could not metadata to file. Either corrupt or not an audio file.')
+        # Only add acceptable file formats
+        if ext in FORMATS:
+            self.audio_files.append(Audio_File(filename))
 
 
     # Get a cover image for the audiobook
@@ -625,6 +689,10 @@ class Audiobook:
 
     # Search Google Books API for information about book based on file name
     def get_info(self, search_term=None):
+
+        # Get book stats
+        self.get_stats()
+
         # Get rid of old matches
         self.matches = []
 
@@ -726,6 +794,44 @@ class Audiobook:
             # Organize all files by parts
             self.organize_files()
             
+            
+    # Get stats (bitrate, length, and size)
+    def get_stats(self):
+    
+        # Get size, average bitrate, and length
+        total_size = 0
+        average_bitrate = 0
+        total_length = 0
+        
+        # Loop over all files in audiobook
+        for audio_file in self.audio_files:
+            # Update individual file stats
+            audio_file.get_stats()
+            
+            # Calculate overall book stats
+            total_size += audio_file.size
+            average_bitrate += audio_file.size * audio_file.bitrate
+            total_length += audio_file.length
+
+        # Get weighted average
+        average_bitrate /= total_size
+        
+        self.size = total_size
+        self.bitrate = average_bitrate
+        self.length = total_length
+
+
+    # Organize audio_files by high-level part, then chapter, then low-level part
+    def organize_files(self):
+        # Get parts and chapters
+        if len(self.audio_files) > 1:
+            for audio_file in self.audio_files:
+                audio_file.get_parts()
+        
+        # Sort files in audiobook
+        self.audio_files.sort()
+        
+        
     def select_info(self):
         info_correct = False
         
@@ -735,49 +841,51 @@ class Audiobook:
             match = self.matches.pop(0)
         
         # Keep going until user or Auburn decides match is good    
+        print()
         while not info_correct:
             if match:
                 # Successful search
-                if match["ratio"] >= 0.5:
+                if match['ratio'] >= 0.5:
                     # Skip user prompt if prompt level is 'never' or 'medium'
                     if config.PROMPT_LEVEL == 0 or config.PROMPT_LEVEL == 1:
                         info_correct = True
                     # Notify user how close of a match it was
-                    print(colors.OKGREEN + "Similarity: Good " +
-                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+                    print(colors.ENDC + 'Similarity: ' + colors.OKGREEN + 'Good ' +
+                          colors.BOLD + '(' + '{:.0%}'.format(match['ratio']) + ')' + colors.ENDC + ' ')
                 # Not quite sure
-                if match["ratio"] < 0.5 and match["ratio"] >= 0.25:
+                if match['ratio'] < 0.5 and match['ratio'] >= 0.25:
                     # Skip user prompt if prompt level is 'never'
                     if config.PROMPT_LEVEL == 0:
                         info_correct = True
                     # Notify user how close of a match it was
-                    print(colors.WARNING + "Similarity: Moderate " +
-                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+                    print(colors.ENDC + 'Similarity: ' + colors.WARNING + 'Moderate ' +
+                          colors.BOLD + '(' + '{:.0%}'.format(match['ratio']) + ')' + colors.ENDC + ' ')
                 # Bad match
-                if match["ratio"] < 0.25:
+                if match['ratio'] < 0.25:
                     # Skip user prompt if prompt level is 'never' and throw out file
                     if config.PROMPT_LEVEL == 0:
                         info_correct = True
-                        self.is_valid = False
+                        self.add_to_library = False
                         return
                     # Notify user how close of a match it was
-                    print(colors.FAIL + "Similarity: Bad " +
-                          colors.BOLD + "(" + "{:.0%}".format(match["ratio"]) + ")" + colors.ENDC + " ")
+                    print(solors.ENDC + 'Similarity: ' + colors.FAIL + 'Bad ' +
+                          colors.BOLD + '(' + '{:.0%}'.format(match['ratio']) + ')' + colors.ENDC + ' ')
 
                 # Display what the program found
                 if "title" in match["info"]:
-                    print(colors.OKBLUE + "Title:    " + colors.OKGREEN + match["info"]["title"])
+                    print(colors.OKBLUE + "Title:    " + colors.ENDC + match["info"]["title"])
                 
                     # Set title in audio files for later
                     for audio_file in self.audio_files:
                         audio_file.set_title(match["info"]["title"])
+
                     
                 if "subtitle" in match["info"]:
-                    print(colors.OKBLUE + "Subtitle: " + colors.OKGREEN + match["info"]["subtitle"])
+                    print(colors.OKBLUE + "Subtitle: " + colors.ENDC + match["info"]["subtitle"])
                 if "authors" in match["info"]:
-                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + match["info"]["authors"][0])
+                    print(colors.OKBLUE + "Author:   " + colors.ENDC + match["info"]["authors"][0])
                 else:
-                    print(colors.OKBLUE + "Author:   " + colors.OKGREEN + "Unknown Author")
+                    print(colors.OKBLUE + "Author:   " + colors.ENDC + "Unknown Author")
             # Otherwise, no matches have been found
             else:
                 print(colors.FAIL + "No matches found!" + colors.RESET + " ")
@@ -787,9 +895,8 @@ class Audiobook:
             # Print filename renames
             print(colors.OKBLUE + "Filenames: ")
             for audio_file in self.audio_files:
-                print("\t" + colors.OKGREEN + str(audio_file))
+                print("    " + colors.ENDC + str(audio_file))
             print()
-
 
             # Prompt user if necessary
             user_input = None
@@ -797,14 +904,14 @@ class Audiobook:
                 valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'S', 's', 'B', 'b', '']
                 while user_input not in valid_options:
                     # Prompt user for input
-                    print(colors.WARNING + "Is this information correct?")
-                    print(colors.WARNING + "Options: [A]pply, [M]ore Candidates, [E]nter Search, [S]kip, A[B]ort")
+                    print(colors.ENDC + "Is this information correct?")
+                    print(colors.WARNING + "Options: [A]pply, [m]ore Candidates, [e]nter Search, [s]kip, a[b]ort")
                     user_input = input(colors.WARNING + "Command:" + colors.RESET + " ")
 
-                if user_input == 'A' or user_input == 'a':
+                if user_input == 'A' or user_input == 'a' or user_input == '':
                     # Exit loop and write match information
                     logging.info('Applying selected info')
-                    self.is_valid = True
+                    self.add_to_library = True
                     info_correct = True
 
                 elif user_input == 'M' or user_input == 'm':
@@ -844,7 +951,6 @@ class Audiobook:
                     print()
                     search_term = input(colors.WARNING + "Title:" + colors.RESET + " ")
                     search_term += " " + input(colors.WARNING + "Author:" + colors.RESET + " ")
-                    print()
 
                     search_term = search_term.lower()
                     
@@ -862,8 +968,8 @@ class Audiobook:
 
                     logging.info('Skipping book')
 
-                    # Drop this file and move on
-                    self.is_valid = False
+                    # Drop this book and move on
+                    self.add_to_library = False
                     return
 
                 elif user_input == 'B' or user_input == 'b':
@@ -889,40 +995,177 @@ class Audiobook:
             if "categories" in match["info"]:
                 self.genre = match["info"]["categories"][0]
             if "publishedDate" in match["info"]:
-                # Find four digit number
-                matches = re.finditer(r"(?<!\d)\d{4}(?!\d)", match["info"]["publishedDate"])
-                for date_match in matches:
-                    if date_match.group(0):
-                        self.year = date_match.group(0)
+                year = month = day = 1
+                matches = re.match("(\d{4})(?:-)?(\d{1,2})?(?:-)?(\d{1,2})?", match["info"]["publishedDate"], re.MULTILINE)
+                if matches:
+                    if matches.group(1):
+                        year = int(matches.group(1))
+                    if matches.group(2):
+                        month = int(matches.group(2))
+                    if matches.group(3):
+                        day = int(matches.group(3))
+                    self.date_published = datetime.date(year, month, day)
             if "description" in match["info"]:
                 self.description = match["info"]["description"]
-            if "categories" in match["info"]:
-                self.genre = match["info"]["categories"][0]
+            if "industryIdentifiers" in match["info"]:
+                for isbn in match["info"]["industryIdentifiers"]:
+                    if isbn["type"] == "ISBN_10" and not self.isbn:
+                        self.isbn = isbn["identifier"]
+                    elif isbn["type"] == "ISBN_13":
+                        self.isbn = isbn["identifier"]
+                    elif isbn["type"] != "ISBN_10" and isbn["type"] != "ISBN_13":
+                        logging.warning("Unexpected ISBN version: %s", isbn["type"])
+            if "maturityRating" in match["info"]:
+                self.content_rating = match["info"]["maturityRating"]
+            if "averageRating" in match["info"]:
+                self.aggregate_rating = match["info"]["averageRating"]
+
         else:
             self.title = ""
             self.subtitle = ""
             self.author = "Unknown Author"
             self.publisher = ""
             self.genre = ""
+            self.date_published = ""
             self.description = ""
-            self.genre = ""
-            
+            self.isbn = ""
+            self.content_rating = ""
+            self.aggregate_rating = 0.0
+
+
+    # Write description to it's own file, for use in Booksonic
+    def write_description(self):
     
-    # Organize audio_files by high-level part, then chapter, then low-level part
-    def organize_files(self):
-        # Get parts and chapters
-        if len(self.audio_files) > 1:
-            for audio_file in self.audio_files:
-                audio_file.get_parts()
+        # Write to file
+        with open(os.path.join(self.directory, 'desc.txt'), 'w') as f:
+            f.write(self.description)
+
+
+    # Write metadata to JSON file
+    def write_json(self):
+       
+        alternate_name = None
+        if self.subtitle:
+            alternate_name = self.title + ": " + self.subtitle
+
+        data = {
+            'name': self.title,
+            'alternateName': alternate_name,
+            'author': {
+                'name': self.author 
+            },
+            'description': self.description,
+            'abridged': self.is_abridged,
+            'isbn': self.isbn,
+            'contentRating': self.content_rating,
+            'aggregateRating': str(self.aggregate_rating),
+            'datePublished': str(self.date_published),
+            'genre': self.genre,
+            'publisher': {
+                'name': self.publisher
+            },
+            'bitrate': str(self.bitrate),
+            'contentSize': str(self.size),
+            'duration': str(self.length)
+        }
+
+        # Serialize json
+        json_object = json.dumps(data, indent = 4)
+
+        # Write to file
+        with open(os.path.join(self.directory, self.title + '.json'), 'w') as f:
+            f.write(json_object)
+
+
+    # Writes tags to audio file 'self'
+    # Path to the audio file should be passed to the function
+    def write_tags(self):
+        # Write each part of file individually
+        for track, audio_file in enumerate(self.audio_files, 1):
+
+            #try:
+            if True:
+                # Get file extension
+                ext = os.path.splitext(audio_file.file_abs_path)[-1]
         
-        # Sort files in audiobook
-        self.audio_files.sort()
+                # Open audio file
+                audio = mutagen.File(audio_file.file_abs_path)
+        
+                # TODO: CLEAR ALL TAGS BEFORE WRITING
+        
+                # TODO: GET .WAV FILES WORKING
+        
+                logging.info('Attempting to open file for writing metadata: %s', audio_file.file_abs_path)
+
+                # Handle different filetypes separately
+                if ext in [".mp3"]:
+                    # Open audio file
+                    try:
+                        audio = EasyID3(audio_file.file_abs_path)
+                    except:
+                        audio = mutagen.File(audio_file.file_abs_path, easy=True)
+                        audio.add_tags()
+                
+                    # Write tags
+                    if audio_file.title:
+                        audio["title"] = audio_file.title
+                    if self.title:
+                        audio["album"] = self.title
+                    if self.author:
+                        audio["artist"] = self.author
+                    if self.date_published:
+                        audio["date"] = str(self.date_published.year)
+                    if self.genre:
+                        audio["genre"] = self.genre
+                
+                    audio["tracknumber"] = str(track)
+                
+                elif ext in [".mp4", ".m4a"]:
+                    # Open audio file
+                    audio = MP4(audio_file.file_abs_path)
+                
+                    # Write tags
+                    if audio_file.title:
+                        audio["\xa9nam"] = audio_file.title
+                    if self.author:
+                        audio["\xa9ART"] = self.author
+                    if self.title:
+                        audio["\xa9alb"] = self.title
+                
+                else:
+                    # Write tags
+                    if audio_file.title:
+                        audio["title"] = audio_file.title
+                    if self.title:
+                        audio["album"] = self.title
+                    if self.author:
+                        audio["artist"] = self.author
+                    if self.publisher:
+                        audio["producer"] = self.publisher
+                    if self.date_published:
+                        audio["date"] = str(self.date_published.year)
+                    if self.description:
+                        audio["description"] = self.description
+                    if self.genre:
+                        audio["genre"] = self.genre
+
+                    audio["tracknumber"] = str(track)
+                
+                # Save changes to file
+                audio.save()
+
+            #except:
+            else:
+                logging.critical('Could not write metadata to file. Either corrupt or not an audio file.')
 
         
 # This is the class that contains a file that is part of an Audiobook
 class Audio_File:
     file_abs_path = ""
     title = ""
+    size = 0
+    bitrate = 0
+    length = 0.0
     # List of all high-level parts contained in this audio file
     high_parts = []
     # List of all chapters contained in this audio file
@@ -987,6 +1230,41 @@ class Audio_File:
                 self.title += " - Parts " + self.low_parts[0] + "-" + self.low_parts[-1]
         
         
+    # Get file stats
+    def get_stats(self):
+        self.size = os.path.getsize(self.file_abs_path)
+
+        # Get file extension
+        ext = os.path.splitext(self.file_abs_path)[-1]
+        
+        # Open audio file
+        audio = None        
+        logging.info('Attempting to open file for reading info: %s', os.path.basename(self.file_abs_path))
+
+        # Handle different filetypes separately
+        if ext in [".mp3"]:
+            # Open audio file
+            try:
+                audio = EasyID3(self.file_abs_path)
+            except:
+                audio = mutagen.File(self.file_abs_path, easy=True)
+                audio.add_tags()
+                
+        elif ext in [".mp4", ".m4a"]:
+            # Open audio file
+            audio = MP4(self.file_abs_path)
+
+        else:
+            audio = mutagen.File(self.file_abs_path)
+                
+        self.bitrate = audio.info.bitrate
+        self.length = audio.info.length
+
+        # Save changes to file
+        audio.save()
+        
+
+
     # Uses the file_abs_path to get parts and chapters for organizing
     def get_parts(self):
         # Remove extension
@@ -1104,11 +1382,11 @@ def get_image(search_term):
     response = google_images_download.googleimagesdownload()
 
     # Set download parameters
-    arguments = {"keywords":search_term,
-                 "limit":1,
-                 "aspect_ratio":"square",
-                 "output_directory":"/tmp/auburn/",
-                 "silent_mode":True}
+    arguments = {'keywords':search_term,
+                 'limit':1,
+                 'aspect_ratio':'square',
+                 'output_directory':'/tmp/auburn/',
+                 'silent_mode':True}
     
     # Download images while redirecting output
     paths = response.download(arguments)
@@ -1138,6 +1416,20 @@ class colors:
     BOLD =      '\033[1m'
     UNDERLINE = '\033[4m'
     RESET =     '\033[0;0m'
+    
+# Takes length in seconds and returns formatted string
+def format_length(length):
+    length_str = ''
+    hours = length / 3600
+    minutes = (length % 3600) / 60
+    seconds = length % 60
+    if hours:
+        length_str += str(int(hours)) + 'H'
+    if minutes:
+        length_str += ' ' + str(int(minutes)) + 'M'
+    if seconds:
+        length_str += ' ' + str(int(seconds)) + 'S'
+    return length_str
 
 
 # Close program gracefully on SIGTERM
