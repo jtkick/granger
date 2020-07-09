@@ -1,4 +1,36 @@
-# Auburn
+<div align="center">
+  <a href="https://gitlab.com/jtkick/Auburn/">
+      <img src="auburn.png" width="120" height="120"/>
+  </a>
+  
+  <h1 align="center">Auburn</h1>
+
+  <p align="center">
+    Organize and scrape metadata for audiobooks.
+    <br />
+    <br />
+    <a href="https://gitlab.com/jtkick/Auburn/">Documentation</a>
+    ·     
+    <a href="https://gitlab.com/jtkick/Auburn/issues">Report Bug</a>
+
+
+  </p>
+  
+</div>
+
+## Table of Contents
+* [About](#about)
+* [Setup](#setup)
+  * [Installation](#installation)
+  * [Configuration](#configuration)
+* [Usage](#usage)
+* [Contributing](#contributing)
+  * [New Features](#new-features)
+  * [Bugs](#bugs)
+  * [Donating](#donating)
+
+
+## About
 
 Auburn is a personal project to create an automated audiobook organizer and scraper.
 
@@ -6,56 +38,58 @@ It is meant to be a layer between youtube-dl and Plex to make downloading and ad
 
 This is my first project outside of academia and my first ever Python project, so it is not expected to be very robust for awhile. Any critiques or contributions are welcome.
 
-# Usage
+## Setup
 
-To use Auburn, simply call:
+#### Installation
 
-> $ ./auburn.py /path/to/new/audiobook/files/
+Clone git repository
 
-The program will iterate through all the files in the given directory and process them one by one. It is only designed to handle .ogg files, but will likely work with other major audio containers. There is no support for multi-file books yet.
+    git clone https://gitlab.com/jtkick/Auburn.git
+    cd ./Auburn
 
-# Installation
+Run install script
 
-Install Google Images Downloader to download cover art
+    setup ./setup.py install
+    
+#### Configuration
+    
+In order to properly import new audiobooks, the 'AUDIOBOOK_DIR' variable must be set in your 'config.py' file. This should be the abolute path of the directory you want to import your books to, for example:
 
-> $ pip install google_images_download
+    AUDIOBOOK_DIR=/home/user/Audiobooks/
 
-Install Requests to handle Google Books API response
+## Usage
 
-> $ pipenv install requests
+To use Auburn, run the following command, where '/path/to/new/audiobook/files/' is a directory containing all audio files you want to import to your audiobook library.
 
-Install Levenshtein package to compare strings
+    ./auburn.py /path/to/new/audiobook/files/
 
-> $ pip install python-Levenshtein
-
-Install Mutagen to write audio file tags
-
-> $ pip install mutagen
-
-Clone repository
-
-> $ git clone https://gitlab.com/jtkick/Auburn.git
+The program will iterate through all the files in the given directory and process them one by one. 
 
 
+## Contributing
 
+Anybody is welcome to contribute so long as they do so politely and respectfully.
 
+#### New Features
 
+1. Fork the project
+2. Create new branch
 
+    `git checkout -b feature/new_feature`
+3. Commit your changes
 
-Database Structure
+    `git commit -m 'Added new feature.'`
+4. Push to repository
 
-*Each library has it's own file
+    `git push origin feature/new_feature`
+5. Create new merge request
 
-Library --------------------------
-    |
-    |-> base_directory
-    |
-    |-> list of authors --------
-        |
-        |-> list of books
-        
-        
-## Donation
+#### Bugs
+
+If you cannot contribute code, consider reporting bugs by [submitting new issue](https://gitlab.com/jtkick/Auburn/issues).
+
+#### Donating
+
 If this project help you reduce time to develop, you can give me a cup of coffee :) 
 
 [![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=N3R7EGLD32ZQ8&currency_code=USD&source=url)
