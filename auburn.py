@@ -19,6 +19,7 @@ import re
 import signal
 import logging
 import datetime
+import string
 
 __author__ = "Jared Kick"
 __copyright__ = "Copyright 2018, Jared Kick, All rights reserved."
@@ -545,7 +546,7 @@ class Author:
                 print()
                 print(colors.OKGREEN + 'New book:')
                 for audio_file in book.audio_files:
-                    print(colors.ENDC + '    ' + audio_file.title)
+                    print(colors.ENDC + '    ' + audio_file.title + os.path.splitext(audio_file.file_abs_path)[-1])
                 print(colors.OKBLUE + '    Bitrate: ' + colors.ENDC + str(int(book.bitrate/1000)) + ' Kb/s')
                 print(colors.OKBLUE + '    Size:    ' + colors.ENDC + str(int(book.size/1000000)) + ' MB')
                 print(colors.OKBLUE + '    Length:  ' + colors.ENDC + format_length(book.length))
@@ -741,6 +742,28 @@ class Audiobook:
         # and see which one is the closest
         if "items" in response:
             for item in response["items"]:
+                # Make sure there is a space after any punctuation in the title
+                if 'title' in item['volumeInfo']:
+                    item['volumeInfo']['title'] = re.sub(r'([\.,!?;:-])(?=[^ \.,!?;:\-$])', r'\1 ', item['volumeInfo']['title'])
+            
+                # If author is formatted like "J.R.R. Tolkien", replace with "J. R. R. Tolkien"
+                if 'authors' in item['volumeInfo']:
+                    item['volumeInfo']['authors'][0] = re.sub(r'(.\.)(?=[^ ])', r'\1 ', item['volumeInfo']['authors'][0])
+            
+                # If author is formatted like "J R R Tolkien", replace with "J. R. R. Tolkien"
+                if 'authors' in item['volumeInfo']:
+                    item['volumeInfo']['authors'][0] = re.sub(r'(?<=[^a-zA-Z])?([A-Z])([ ])', r'\1.\2', item['volumeInfo']['authors'][0])
+                    
+                # Fix capitalizations of title, subtitle, and author
+                # Do NOT capitalize articles, coordinate conjunctions, nor prepositions
+                # that are shorter than three letters long
+                if 'title' in item['volumeInfo']:
+                    item['volumeInfo']['title'] = titleify(item['volumeInfo']['title'])
+                if 'subtitle' in item['volumeInfo']:
+                    item['volumeInfo']['subtitle'] = titleify(item['volumeInfo']['subtitle'])
+                if 'authors' in item['volumeInfo']:
+                    item['volumeInfo']['authors'][0] = titleify(item['volumeInfo']['authors'][0])
+            
                 # Start by comparing with just the title
                 response_str = ""
                 if "title" in item["volumeInfo"]:
@@ -792,7 +815,8 @@ class Audiobook:
             self.matches = sorted(self.matches, key = lambda i: i["ratio"], reverse=True)
             
             # Organize all files by parts
-            self.organize_files()
+            if len(self.audio_files) > 1:
+                self.get_parts()
             
             
     # Get stats (bitrate, length, and size)
@@ -814,7 +838,8 @@ class Audiobook:
             total_length += audio_file.length
 
         # Get weighted average
-        average_bitrate /= total_size
+        if total_size:
+            average_bitrate /= total_size
         
         self.size = total_size
         self.bitrate = average_bitrate
@@ -822,11 +847,10 @@ class Audiobook:
 
 
     # Organize audio_files by high-level part, then chapter, then low-level part
-    def organize_files(self):
+    def get_parts(self):
         # Get parts and chapters
-        if len(self.audio_files) > 1:
-            for audio_file in self.audio_files:
-                audio_file.get_parts()
+        for audio_file in self.audio_files:
+            audio_file.get_parts()
         
         # Sort files in audiobook
         self.audio_files.sort()
@@ -868,44 +892,44 @@ class Audiobook:
                         self.add_to_library = False
                         return
                     # Notify user how close of a match it was
-                    print(solors.ENDC + 'Similarity: ' + colors.FAIL + 'Bad ' +
+                    print(colors.ENDC + 'Similarity: ' + colors.FAIL + 'Bad ' +
                           colors.BOLD + '(' + '{:.0%}'.format(match['ratio']) + ')' + colors.ENDC + ' ')
 
                 # Display what the program found
-                if "title" in match["info"]:
-                    print(colors.OKBLUE + "Title:    " + colors.ENDC + match["info"]["title"])
+                if 'title' in match['info']:
+                    print(colors.OKBLUE + 'Title:    ' + colors.ENDC + match['info']['title'])
                 
                     # Set title in audio files for later
                     for audio_file in self.audio_files:
-                        audio_file.set_title(match["info"]["title"])
+                        audio_file.set_title(match['info']['title'])
 
                     
-                if "subtitle" in match["info"]:
-                    print(colors.OKBLUE + "Subtitle: " + colors.ENDC + match["info"]["subtitle"])
-                if "authors" in match["info"]:
-                    print(colors.OKBLUE + "Author:   " + colors.ENDC + match["info"]["authors"][0])
+                if 'subtitle' in match['info']:
+                    print(colors.OKBLUE + 'Subtitle: ' + colors.ENDC + match['info']['subtitle'])
+                if 'authors' in match['info']:
+                    print(colors.OKBLUE + 'Author:   ' + colors.ENDC + match['info']['authors'][0])
                 else:
-                    print(colors.OKBLUE + "Author:   " + colors.ENDC + "Unknown Author")
+                    print(colors.OKBLUE + 'Author:   ' + colors.ENDC + 'Unknown Author')
             # Otherwise, no matches have been found
             else:
-                print(colors.FAIL + "No matches found!" + colors.RESET + " ")
-                print(colors.OKBLUE + "Title:")
-                print(colors.OKBLUE + "Author:")
+                print(colors.FAIL + 'No matches found!' + colors.RESET + ' ')
+                print(colors.OKBLUE + 'Title:')
+                print(colors.OKBLUE + 'Author:')
             
             # Print filename renames
-            print(colors.OKBLUE + "Filenames: ")
+            print(colors.OKBLUE + 'Filenames: ')
             for audio_file in self.audio_files:
-                print("    " + colors.ENDC + str(audio_file))
+                print('    ' + colors.ENDC + str(audio_file))
             print()
 
             # Prompt user if necessary
             user_input = None
             if not info_correct:
-                valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'S', 's', 'B', 'b', '']
+                valid_options = ['A', 'a', 'M', 'm', 'E', 'e', 'N', 'n', 'S', 's', 'B', 'b', '']
                 while user_input not in valid_options:
                     # Prompt user for input
                     print(colors.ENDC + "Is this information correct?")
-                    print(colors.WARNING + "Options: [A]pply, [m]ore Candidates, [e]nter Search, [s]kip, a[b]ort")
+                    print(colors.WARNING + "Options: [A]pply, [m]ore candidates, [e]nter search, e[n]ter metadata manually, [s]kip, a[b]ort")
                     user_input = input(colors.WARNING + "Command:" + colors.RESET + " ")
 
                 if user_input == 'A' or user_input == 'a' or user_input == '':
@@ -921,13 +945,20 @@ class Audiobook:
                     else:
                         i = 1
                         for item in self.matches:
-                            msg = colors.WARNING + str(i) + " - {:.0%}".format(item["ratio"])
+                            msg = colors.RESET + str(i) + " - "
+                            if item["ratio"] >= 0.5:
+                                msg += colors.OKGREEN + "{:.0%}".format(item["ratio"])
+                            elif item["ratio"] >= 0.25:
+                                msg += colors.WARNING + "{:.0%}".format(item["ratio"])
+                            else:
+                                msg += colors.FAIL + "{:.0%}".format(item["ratio"])
+                            
                             if "title" in item["info"]:
-                                msg += " - " + item["info"]["title"]
+                                msg += colors.RESET + " - " + item["info"]["title"]
                             if "subtitle" in item["info"]:
-                                msg += ": " + item["info"]["subtitle"]
+                                msg += colors.RESET + ": " + item["info"]["subtitle"]
                             if "authors" in item["info"]:
-                                msg += " - " + item["info"]["authors"][0]
+                                msg += colors.RESET + " - " + item["info"]["authors"][0]
                             print(msg)
                             i += 1
 
@@ -948,9 +979,11 @@ class Audiobook:
 
                 elif user_input == 'E' or user_input == 'e':
                     # Do it again with new information
+                    logging.info('Waiting for user to enter search term')
                     print()
                     search_term = input(colors.WARNING + "Title:" + colors.RESET + " ")
                     search_term += " " + input(colors.WARNING + "Author:" + colors.RESET + " ")
+                    print()
 
                     search_term = search_term.lower()
                     
@@ -963,6 +996,40 @@ class Audiobook:
                     match = None
                     if len(self.matches) > 0:
                         match = self.matches.pop(0)
+                        
+                elif user_input == 'N' or user_input == 'n':
+                    # Let user set metadata
+                    logging.info('Waiting for user to enter metadata')
+                    print()
+                    self.title = input(colors.WARNING + 'Title:' + colors.ENDC + ' ')
+                    self.subtitle = input(colors.WARNING + 'Subtitle:' + colors.ENDC + ' ')
+                    self.author = input(colors.WARNING + 'Author:' + colors.ENDC + ' ')
+                    self.publisher = input(colors.WARNING + 'Publisher:' + colors.ENDC + ' ')
+                    self.genre = input(colors.WARNING + 'Genre:' + colors.ENDC + ' ')
+                    date = input(colors.WARNING + 'Publish date:' + colors.ENDC + ' ')
+                    year = month = day = 1
+                    matches = re.match("(\d{4})(?:-)?(\d{1,2})?(?:-)?(\d{1,2})?", date, re.MULTILINE)
+                    if matches:
+                        if matches.group(1):
+                            year = int(matches.group(1))
+                        if matches.group(2):
+                            month = int(matches.group(2))
+                        if matches.group(3):
+                            day = int(matches.group(3))
+                    self.date_published = datetime.date(year, month, day)
+                    self.description = input(colors.WARNING + 'Description:' + colors.ENDC + ' ')
+                    self.isbn = input(colors.WARNING + 'ISBN:' + colors.ENDC + ' ')
+                    print()
+                    
+                    self.add_to_library = True
+                    info_correct = True
+                    
+                    # Set file titles to new title
+                    for audio_file in self.audio_files:
+                        audio_file.set_title(self.title)
+                    
+                    # Don't apply match info
+                    return
 
                 elif user_input == 'S' or user_input == 's':
 
@@ -1031,6 +1098,10 @@ class Audiobook:
             self.isbn = ""
             self.content_rating = ""
             self.aggregate_rating = 0.0
+            
+        # Set title in audio files for later
+        for audio_file in self.audio_files:
+            audio_file.set_title(self.title)
 
 
     # Write description to it's own file, for use in Booksonic
@@ -1047,6 +1118,10 @@ class Audiobook:
         alternate_name = None
         if self.subtitle:
             alternate_name = self.title + ": " + self.subtitle
+        
+        date = str(self.date_published)
+        if str(self.date_published) == '0001-01-01':
+            date = None
 
         data = {
             'name': self.title,
@@ -1059,7 +1134,7 @@ class Audiobook:
             'isbn': self.isbn,
             'contentRating': self.content_rating,
             'aggregateRating': str(self.aggregate_rating),
-            'datePublished': str(self.date_published),
+            'datePublished': date,
             'genre': self.genre,
             'publisher': {
                 'name': self.publisher
@@ -1113,8 +1188,11 @@ class Audiobook:
                         audio["album"] = self.title
                     if self.author:
                         audio["artist"] = self.author
-                    if self.date_published:
-                        audio["date"] = str(self.date_published.year)
+                    if self.date_published and self.date_published.year:
+                        if self.date_published.year != '0001':
+                            audio["date"] = str(self.date_published.year)
+                        else:
+                            audio["date"] = ""
                     if self.genre:
                         audio["genre"] = self.genre
                 
@@ -1142,8 +1220,11 @@ class Audiobook:
                         audio["artist"] = self.author
                     if self.publisher:
                         audio["producer"] = self.publisher
-                    if self.date_published:
-                        audio["date"] = str(self.date_published.year)
+                    if self.date_published and self.date_published.year:
+                        if self.date_published.year != '0001':
+                            audio["date"] = str(self.date_published.year)
+                        else:
+                            audio["date"] = ""
                     if self.description:
                         audio["description"] = self.description
                     if self.genre:
@@ -1257,12 +1338,18 @@ class Audio_File:
         else:
             audio = mutagen.File(self.file_abs_path)
                 
-        self.bitrate = audio.info.bitrate
-        self.length = audio.info.length
+        try:
+            self.bitrate = audio.info.bitrate
+        except:
+            self.bitrate = 0
+            
+        try:
+            self.length = audio.info.length
+        except:
+            self.length = 0
 
         # Save changes to file
         audio.save()
-        
 
 
     # Uses the file_abs_path to get parts and chapters for organizing
@@ -1439,6 +1526,40 @@ def terminate(signal, frame):
     stop_fetch_thread()
     stop_select_thread()
     stop_write_thread()
+    
+# Fix capitalizations of title and subtitle
+# Do NOT capitalize articles, coordinate conjunctions, nor prepositions
+# that are shorter than three letters long
+def titleify(title):
+    # Find and match Roman numerals
+    matches = re.findall(r'(?:[^a-z0-9]|\s)?[IVXLDCM]{2,}(?:[^a-z0-9]|\s|$)', title, re.MULTILINE)
+    
+    title = title.lower()
+    
+    # Re-capitalize Roman numerals before splitting
+    for match in matches:
+        title = title.replace(match.lower(), match)
+        
+    for char in ['[', ']', '{', '}', '(', ')', '<', '>']:
+        title = title.replace(char, '')
+
+    words = title.split(' ')   
+    title = string.capwords(words.pop(0))
+    for word in words:
+        if word in ['a', 'an', 'the', 'for', 'and', 'nor', 'but', 'or', 'yet', 'so',
+                    'as', 'at', 'by', 'in', 'of', 'on', 'out', 'per', 'to', 'up', 'via']:
+            title += ' ' + word
+        else:
+            if word.isupper():
+                title += ' ' + word
+            else:
+                title += ' ' + string.capwords(word)
+    
+    # Find ': ' or ' - ' in string and capitalize next letter
+    for match in re.findall(r'(?::| - )[^a-z]*[a-z]', title, re.MULTILINE):
+        title = title.replace(match.lower(), string.capwords(match))
+    
+    return title
 
 
 if __name__ == "__main__":

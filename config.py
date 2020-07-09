@@ -41,7 +41,8 @@ OVERWRITE = "prompt"
 # These words (especially "audiobook") tend to screw up Google Books searches
 WORDS = ["audiobooks", "audiobook", "audio", "book", " by ", "narrated", " full ",
          "complete", "hd", "hq", "high quality", "pdf", "abridged", "unabridged",
-         "subtitles", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free"]
+         "subtitles", "mp3", "mp4", "m4v", "m4a", "m4b", "wav", "wmv", "free",
+         "dramatized", "dramatised"]
 
 # Special characters to remove from filename. '&' is NOT removed as these are
 # sometimes helpful
