@@ -6,6 +6,12 @@ setup (
     name = "Auburn",
     version = "0.4",
     packages = find_packages(),
+    install_requires=[
+        'mutagen',
+        'requests',
+        'argparse',
+        'google_images_download @ git+https://gitlab.com/jtkick/google-images-download.git'
+    ],
 
     author = "Jared Kick",
     author_email = "jaredkick@gmail.com",
