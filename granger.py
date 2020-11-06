@@ -46,7 +46,7 @@ parser.add_argument("-s", "--single-thread", help="Run in single thread mode.", 
 parser.add_argument("-j", "--write-json", help="Write metadata to JSON file.", action="store_true")
 parser.add_argument("-i", "--no-images", help="Skip downloading cover images for book and author.", action="store_true")
 parser.add_argument('-e', '--write-description', help='Write book summary to desc.txt file for Booksonic.', action='store_true')
-parser.add_argument("-l", "--log-level", choices=["debug", "info", "warning", "error", "critical"], help="Set the log level to be stored in auburn.log.", default="info")
+parser.add_argument("-l", "--log-level", choices=["debug", "info", "warning", "error", "critical"], help="Set the log level to be stored in granger.log.", default="info")
 
 # Parse all arguments
 args = parser.parse_args()
@@ -139,7 +139,7 @@ def main():
     signal.signal(signal.SIGTERM, terminate)
 
     # Setup logger
-    logging.basicConfig(filename='auburn.log', format='[%(asctime)s] %(process)d: %(message)s', level=logging.INFO)
+    logging.basicConfig(filename='granger.log', format='[%(asctime)s] %(process)d: %(message)s', level=logging.INFO)
     if args.log_level == 'debug':
         logging.getLogger().setLevel(logging.DEBUG)
     elif args.log_level == 'info':
@@ -864,7 +864,7 @@ class Audiobook:
         if len(self.matches) > 0:
             match = self.matches.pop(0)
         
-        # Keep going until user or Auburn decides match is good    
+        # Keep going until user or Granger decides match is good    
         print()
         while not info_correct:
             if match:
@@ -1437,7 +1437,7 @@ class Audio_File:
 #########################################################
 
 def reset_download_dir():
-    download_dir = "/tmp/auburn/"
+    download_dir = "/tmp/granger/"
     
     logging.info('Clearing download directory: %s', download_dir)
 
@@ -1472,7 +1472,7 @@ def get_image(search_term):
     arguments = {'keywords':search_term,
                  'limit':1,
                  'aspect_ratio':'square',
-                 'output_directory':'/tmp/auburn/',
+                 'output_directory':'/tmp/granger/',
                  'silent_mode':True}
     
     # Download images while redirecting output

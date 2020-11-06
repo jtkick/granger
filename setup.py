@@ -3,8 +3,8 @@
 from setuptools import setup, find_packages
 
 setup (
-    name = "Auburn",
-    version = "0.4",
+    name = "Granger",
+    version = "0.5",
     packages = find_packages(),
     install_requires=[
         'mutagen',

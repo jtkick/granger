@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-# Auburn configuration file
+# Granger configuration file
 
 # Location of audiobook library
 # This is where all new audiobooks given in the arguments will be stored
 # Structure assumed to be: /path/to/library/author/book/book.ogg
 # Ex: AUDIOBOOK_DIR = "/path/to/library/"
-AUDIOBOOK_DIR = "/home/jared/Audiobooks/"
+AUDIOBOOK_DIR = "/home/jared/organized_audiobooks/"
 
 # Delete files after importing
-# If 'True', Auburn will remove original audio files after importing to library
+# If 'True', Granger will remove original audio files after importing to library
 # This can also be done on a case-by-case basis with the '-d' flag through the
 # command line.
 DELETE = False
 
 # Recurse down through directories
-# If 'True', Auburn will add all files in the given directory to the library
+# If 'True', Granger will add all files in the given directory to the library
 # including all files in subdirectories
 RECURSE = True
 

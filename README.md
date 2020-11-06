@@ -1,17 +1,17 @@
 <div align="center">
-  <a href="https://gitlab.com/jtkick/Auburn/">
-      <img src="auburn.png" width="120" height="120"/>
+  <a href="https://gitlab.com/jtkick/granger/">
+      <img src="granger.png" width="120" height="120"/>
   </a>
   
-  <h1 align="center">Auburn</h1>
+  <h1 align="center">Granger</h1>
 
   <p align="center">
     Organize and scrape metadata for audiobooks.
     <br />
     <br />
-    <a href="https://gitlab.com/jtkick/Auburn/">Documentation</a>
+    <a href="https://gitlab.com/jtkick/granger/">Documentation</a>
     ·     
-    <a href="https://gitlab.com/jtkick/Auburn/issues">Report Bug</a>
+    <a href="https://gitlab.com/jtkick/granger/issues">Report Bug</a>
 
 
   </p>
@@ -32,7 +32,7 @@
 
 ## About
 
-Auburn is a personal project to create an automated audiobook organizer and scraper.
+Granger is a personal project to create an automated audiobook organizer and scraper.
 
 It is meant to be a layer between youtube-dl and Plex to make downloading and adding audiobooks to my Plex server fully automated and painless. The program will guess a title based solely on the filename, rewrite the tags and filename, download the appropriate cover art for each audiobook, and move it to the specified location given in the AUDIOBOOK_DIR variable.
 
@@ -44,8 +44,8 @@ This is my first project outside of academia and my first ever Python project, s
 
 Clone git repository
 
-    git clone https://gitlab.com/jtkick/Auburn.git
-    cd ./Auburn
+    git clone https://gitlab.com/jtkick/granger.git
+    cd ./granger
 
 Run install script
 
@@ -59,9 +59,9 @@ In order to properly import new audiobooks, the 'AUDIOBOOK_DIR' variable must be
 
 ## Usage
 
-To use Auburn, run the following command, where '/path/to/new/audiobook/files/' is a directory containing all audio files you want to import to your audiobook library.
+To use Granger, run the following command, where '/path/to/new/audiobook/files/' is a directory containing all audio files you want to import to your audiobook library.
 
-    ./auburn.py /path/to/new/audiobook/files/
+    ./granger.py /path/to/new/audiobook/files/
 
 The program will iterate through all the files in the given directory and process them one by one. 
 
@@ -86,7 +86,7 @@ Anybody is welcome to contribute so long as they do so politely and respectfully
 
 #### Bugs
 
-If you cannot contribute code, consider reporting bugs by [submitting new issue](https://gitlab.com/jtkick/Auburn/issues).
+If you cannot contribute code, consider reporting bugs by [submitting new issue](https://gitlab.com/jtkick/granger/issues).
 
 #### Donating
 
